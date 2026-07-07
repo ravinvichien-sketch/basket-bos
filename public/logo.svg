@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Basket Bos">
+  <rect width="512" height="512" rx="96" fill="#F6E635"/>
+  <g fill="#0B0B0B" font-family="'Arial Black','Helvetica Neue',Impact,sans-serif" font-weight="900" text-anchor="middle" letter-spacing="-4">
+    <text x="256" y="228" font-size="132">BASKET</text>
+    <text x="196" y="366" font-size="150">B  S</text>
+  </g>
+  <g transform="translate(256,300)">
+    <circle r="52" fill="#0B0B0B"/>
+    <circle r="52" fill="none" stroke="#F6E635" stroke-width="7"/>
+    <path d="M-52 0 H52 M0 -52 V52 M-37 -37 Q0 0 -37 37 M37 -37 Q0 0 37 37" fill="none" stroke="#F6E635" stroke-width="7"/>
+  </g>
+</svg>

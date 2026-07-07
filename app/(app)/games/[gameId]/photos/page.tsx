@@ -1,0 +1,89 @@
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getAdminContext } from "@/features/auth/guards";
+import { PhotoUpload } from "./photo-upload";
+import { Card, CardTitle } from "@/components/ui/card";
+
+interface GamePhotoRow {
+  id: string;
+  storage_path: string;
+  caption: string | null;
+  uploaded_by: string;
+  created_at: string;
+}
+
+export default async function GamePhotosPage({
+  params,
+}: {
+  params: Promise<{ gameId: string }>;
+}) {
+  const { gameId } = await params;
+  const { supabase, user } = await getAdminContext();
+
+  const { data: game } = await supabase
+    .from("games")
+    .select("id, title")
+    .eq("id", gameId)
+    .single();
+  if (!game) notFound();
+
+  const { data: photos } = await supabase
+    .from("game_photos")
+    .select("*")
+    .eq("game_id", gameId)
+    .order("created_at", { ascending: false });
+
+  const storage = (await createClient()).storage.from("game_photos");
+
+  return (
+    <main className="px-5 py-8 space-y-5">
+      <header>
+        <Link href={`/games/${gameId}`} className="text-xs text-ink-faint">
+          ← กลับหน้าเกม
+        </Link>
+        <h1 className="text-2xl font-extrabold mt-1">📷 รูปภาพ</h1>
+        <p className="text-sm text-ink-dim">{game.title}</p>
+      </header>
+
+      <PhotoUpload gameId={gameId} />
+
+      {photos && photos.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {(photos as GamePhotoRow[]).map((photo) => {
+            const { data: { publicUrl } } = storage.getPublicUrl(photo.storage_path);
+            return (
+              <div key={photo.id} className="relative group">
+                <div className="aspect-square rounded-xl overflow-hidden bg-surface-overlay">
+                  <Image
+                    src={publicUrl}
+                    alt={photo.caption ?? ""}
+                    width={400}
+                    height={400}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                {photo.caption && (
+                  <p className="mt-1 text-xs text-ink-dim truncate px-1">
+                    {photo.caption}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <Card className="py-12 text-center text-sm text-ink-faint">
+          ยังไม่มีรูปภาพ — อัปโหลดรูปแรกเลย!
+        </Card>
+      )}
+
+      {photos && photos.length > 0 && (
+        <p className="text-center text-xs text-ink-faint">
+          📤 แตะรูปค้างเพื่อแชร์ หรือบันทึก
+        </p>
+      )}
+    </main>
+  );
+}
