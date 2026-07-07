@@ -104,7 +104,7 @@ export function GroupManager({
                 แอดมินก๊วน
               </span>
             )}
-            {isSuperAdmin && (
+            {(isSuperAdmin || (canManage && m.role !== "admin")) && (
               <button
                 onClick={() =>
                   run(() => setGroupAdmin(groupId, m.id, m.role !== "admin"))

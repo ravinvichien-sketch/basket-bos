@@ -26,28 +26,40 @@ function revalidateGroups(groupId?: string) {
   if (groupId) revalidatePath(`/groups/${groupId}`);
 }
 
-/** แอดมินเต็มระบบ: สร้างก๊วนใหม่ */
+/** ใครก็ตามที่ลงทะเบียนแล้วสามารถตั้งก๊วนใหม่ได้ (ต้องมี LINE Group) */
 export async function createGroup(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
   const name = String(formData.get("name") ?? "").trim();
   if (!name || name.length > 60) return { error: "ใส่ชื่อก๊วน 1–60 ตัวอักษร" };
+  const lineGroupId = String(formData.get("line_group_id") ?? "").trim();
+  if (!lineGroupId) return { error: "กรุณาใส่ LINE Group ID" };
 
-  const { supabase, isAdmin } = await getAdminContext();
-  if (!isAdmin) return { error: "เฉพาะแอดมินเต็มระบบเท่านั้น" };
+  const { supabase } = await getAdminContext();
 
-  const { error } = await supabase.rpc("create_group", { p_name: name });
+  const { error } = await supabase.rpc("create_group", {
+    p_name: name,
+    p_line_group_id: lineGroupId,
+  });
+  if (error?.message?.includes("NOT_ONBOARDED")) {
+    return { error: "กรุณาลงทะเบียนให้สมบูรณ์ก่อนตั้งก๊วน" };
+  }
+  if (error?.message?.includes("NO_LINE_GROUP")) {
+    return { error: "กรุณาใส่ LINE Group ID" };
+  }
   if (error) return { error: "สร้างก๊วนไม่สำเร็จ" };
 
   revalidateGroups();
   return {};
 }
 
-/** แอดมินเต็มระบบ: เปลี่ยนชื่อก๊วน */
+/** เปลี่ยนชื่อก๊วน (แอดมินก๊วนหรือแอดมินเต็มระบบ) */
 export async function renameGroup(groupId: string, name: string) {
-  const { supabase, isAdmin } = await getAdminContext();
-  if (!isAdmin) return { error: "เฉพาะแอดมินเต็มระบบเท่านั้น" };
+  const { supabase, user, isAdmin } = await getAdminContext();
+  if (!(await canManageGroup(supabase, groupId, user.id, isAdmin))) {
+    return { error: "คุณไม่มีสิทธิ์จัดการก๊วนนี้" };
+  }
   const n = name.trim();
   if (!n || n.length > 60) return { error: "ชื่อก๊วน 1–60 ตัวอักษร" };
 
@@ -164,14 +176,16 @@ export async function removePlayersFromGroup(
   return { done };
 }
 
-/** แอดมินเต็มระบบ: แต่งตั้ง/ถอน แอดมินของก๊วน */
+/** แต่งตั้ง/ถอน แอดมินของก๊วน (แอดมินก๊วนหรือแอดมินเต็มระบบ) */
 export async function setGroupAdmin(
   groupId: string,
   profileId: string,
   value: boolean
 ) {
-  const { supabase, isAdmin } = await getAdminContext();
-  if (!isAdmin) return { error: "เฉพาะแอดมินเต็มระบบเท่านั้น" };
+  const { supabase, user, isAdmin } = await getAdminContext();
+  if (!(await canManageGroup(supabase, groupId, user.id, isAdmin))) {
+    return { error: "คุณไม่มีสิทธิ์จัดการก๊วนนี้" };
+  }
 
   const { error } = await supabase.rpc("set_group_member_admin", {
     p_group_id: groupId,
