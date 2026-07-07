@@ -7,6 +7,10 @@ import { t } from "@/lib/i18n";
 import { Card, CardTitle } from "@/components/ui/card";
 import { CardPhotoManager } from "@/features/profile/components/card-photo-manager";
 import { LineIdEditor } from "@/features/profile/components/line-id-editor";
+import {
+  DreamTeamSection,
+  type DreamTeamView,
+} from "@/features/profile/components/dream-teams";
 
 const HAND_LABELS: Record<string, Record<string, string>> = {
   th: { left: "ซ้าย", right: "ขวา", both: "สองมือ" },
@@ -20,14 +24,56 @@ export default async function ProfilePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: profile }, { data: positions }] = await Promise.all([
+  const [{ data: profile }, { data: positions }, { data: myTeams }, { data: candidateProfiles }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase
       .from("player_positions")
       .select("position, priority")
       .eq("profile_id", user.id)
       .order("priority"),
+    supabase
+      .from("dream_teams")
+      .select("id, name, owner_id, profiles!owner_id(nickname)")
+      .or(`owner_id.eq.${user.id}`),
+    supabase
+      .from("profiles")
+      .select("id, nickname")
+      .neq("id", user.id)
+      .eq("onboarded", true)
+      .order("nickname"),
   ]);
+
+  // Dream teams
+  const teamIds = (myTeams ?? []).map((t: { id: string }) => t.id);
+  const { data: teamMembers } = teamIds.length > 0
+    ? await supabase
+        .from("dream_team_members")
+        .select("id, dream_team_id, profile_id, status, profiles!profile_id(nickname)")
+        .in("dream_team_id", teamIds)
+    : { data: [] };
+
+  const dtTeams: DreamTeamView[] = ((myTeams ?? []) as unknown[]).map((t) => {
+    const tt = t as { id: string; name: string; owner_id: string; profiles: { nickname: string } | { nickname: string }[] | null };
+    const ownerNick = Array.isArray(tt.profiles)
+      ? tt.profiles[0]?.nickname ?? "ผู้เล่น"
+      : tt.profiles?.nickname ?? "ผู้เล่น";
+    const members: { id: string; profile_id: string; nickname: string; status: string }[] = [];
+    for (const m of (teamMembers ?? []) as unknown as { id: string; dream_team_id: string; profile_id: string; status: string; profiles: { nickname: string } | null }[]) {
+      if (m.dream_team_id === tt.id) {
+        members.push({
+          id: m.id,
+          profile_id: m.profile_id,
+          nickname: m.profiles?.nickname ?? "ผู้เล่น",
+          status: m.status,
+        });
+      }
+    }
+    return { id: tt.id, name: tt.name, owner_id: tt.owner_id, owner_nickname: ownerNick, members };
+  });
+
+  const dtCandidates = (candidateProfiles ?? []).map((p: { id: string; nickname: string }) => ({
+    id: p.id, nickname: p.nickname,
+  }));
 
   if (!profile) redirect("/onboarding");
 
@@ -112,6 +158,17 @@ export default async function ProfilePage() {
           <p className="mt-2 text-sm leading-relaxed">{profile.bio}</p>
         </Card>
       )}
+
+      <Card>
+        <CardTitle>🌟 Dream Team</CardTitle>
+        <div className="mt-2">
+          <DreamTeamSection
+            teams={dtTeams}
+            meId={user.id}
+            candidates={dtCandidates}
+          />
+        </div>
+      </Card>
     </main>
   );
 }
