@@ -15,8 +15,12 @@ export default async function LiveMatchPage({
   const { gameId } = await params;
   const { supabase } = await getAdminContext();
 
-  const [{ data: game }, { data: teamsData }] = await Promise.all([
-    supabase.from("games").select("id, title").eq("id", gameId).single(),
+  const [{ data: game }, { data: teamsData }, { data: existingMatches }] = await Promise.all([
+    supabase
+      .from("games")
+      .select("id, title, game_duration_minutes, target_score")
+      .eq("id", gameId)
+      .single(),
     supabase
       .from("teams")
       .select(
@@ -24,6 +28,11 @@ export default async function LiveMatchPage({
       )
       .eq("game_id", gameId)
       .order("name"),
+    supabase
+      .from("matches")
+      .select("id, status")
+      .eq("game_id", gameId)
+      .order("created_at", { ascending: true }),
   ]);
   if (!game) notFound();
 
@@ -43,18 +52,26 @@ export default async function LiveMatchPage({
     })),
   }));
 
+  const duration = (game.game_duration_minutes as number) ?? 8;
+
   return (
     <main className="px-5 py-8 space-y-5">
       <header>
-        <Link href={`/games/${gameId}/stats`} className="text-xs text-ink-faint">
-          ← กลับหน้าสถิติ
+        <Link href={`/games/${gameId}`} className="text-xs text-ink-faint">
+          ← กลับหน้า Session
         </Link>
         <h1 className="text-2xl font-extrabold mt-1">จดสกอร์สด 🔴</h1>
         <p className="text-sm text-ink-dim">{game.title}</p>
       </header>
 
       {teams.length >= 2 ? (
-        <LiveMatch gameId={gameId} teams={teams} />
+        <LiveMatch
+          gameId={gameId}
+          teams={teams}
+          gameDurationMinutes={duration}
+          targetScore={(game.target_score as number) ?? null}
+          existingMatches={(existingMatches ?? []) as { id: string; status: string }[]}
+        />
       ) : (
         <Card className="py-12 text-center text-sm text-ink-faint space-y-3">
           <p>ต้องมีอย่างน้อย 2 ทีมก่อนถึงจะจดสกอร์สดได้</p>

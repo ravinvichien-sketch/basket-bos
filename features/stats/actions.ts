@@ -156,9 +156,164 @@ const livePayloadSchema = z
   .refine((d) => d.team_a !== d.team_b, { message: "เลือกคนละทีม" });
 
 /**
- * โหมดจดสกอร์สด: บันทึกผลแมตช์ + สถิติรายคนของแมตช์นี้
- * สถิติของแต่ละแมตช์เก็บแยก row (match_id) — ไม่รวมกับแมตช์อื่น
- * ส่วนสถิติรวมทุกแมตช์ดูได้จาก v_player_season_stats (aggregate profile_id)
+ * โหมดจดสกอร์สด: สร้างเกมส์ใหม่ใน Session นี้ + เริ่ม timer
+ */
+export async function startMatchGame(
+  gameId: string,
+  teamAId: string,
+  teamBId: string
+): Promise<ActionState & { matchId?: string }> {
+  const { supabase } = await requireUser();
+
+  const { data: game } = await supabase
+    .from("games")
+    .select("game_duration_minutes, target_score")
+    .eq("id", gameId)
+    .single();
+  if (!game) return { error: "ไม่พบ Session" };
+
+  const { data: teamRows } = await supabase
+    .from("teams")
+    .select("id, name")
+    .in("id", [teamAId, teamBId]);
+  const nameOf = (id: string) =>
+    teamRows?.find((t) => t.id === id)?.name ?? null;
+
+  const duration = (game.game_duration_minutes ?? 8) * 60;
+
+  const { data: match, error } = await supabase
+    .from("matches")
+    .insert({
+      game_id: gameId,
+      team_a: teamAId,
+      team_b: teamBId,
+      team_a_name: nameOf(teamAId),
+      team_b_name: nameOf(teamBId),
+      status: "playing",
+      timer_seconds: duration,
+      timer_running: true,
+      timer_started_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (error) return { error: "เริ่มเกมส์ไม่สำเร็จ" };
+
+  revalidatePath(`/games/${gameId}/live`);
+  return { matchId: match.id };
+}
+
+/**
+ * หยุด/ดำเนินการ timer ต่อ
+ */
+export async function toggleMatchTimer(
+  matchId: string,
+  remainingSeconds: number,
+  running: boolean
+): Promise<ActionState> {
+  const { supabase } = await requireUser();
+
+  if (running) {
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        timer_running: true,
+        timer_started_at: new Date().toISOString(),
+        timer_seconds: remainingSeconds,
+      })
+      .eq("id", matchId);
+    if (error) return { error: "ดำเนินการ timer ไม่สำเร็จ" };
+  } else {
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        timer_running: false,
+        timer_seconds: remainingSeconds,
+      })
+      .eq("id", matchId);
+    if (error) return { error: "หยุด timer ไม่สำเร็จ" };
+  }
+
+  return {};
+}
+
+/**
+ * จบเกมส์: บันทึกสถิติ + อัปเดต match status
+ */
+export async function endMatchGame(
+  matchId: string,
+  gameId: string,
+  payloadJson: string
+): Promise<ActionState> {
+  const { supabase } = await requireUser();
+
+  let parsed;
+  try {
+    parsed = livePayloadSchema.safeParse(JSON.parse(payloadJson));
+  } catch {
+    return { error: "ข้อมูลไม่ถูกต้อง" };
+  }
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "ข้อมูลไม่ถูกต้อง" };
+  }
+  const d = parsed.data;
+
+  // Update match with final scores and status
+  const { error: matchError } = await supabase
+    .from("matches")
+    .update({
+      score_a: d.score_a,
+      score_b: d.score_b,
+      timer_running: false,
+      status: "finished",
+    })
+    .eq("id", matchId);
+  if (matchError) return { error: "บันทึกผลเกมส์ไม่สำเร็จ" };
+
+  if (d.lines.length > 0) {
+    const rows = d.lines.map((l) => {
+      const fgm = l.fgm;
+      const tpm = l.tpm;
+      const ftm = l.ftm;
+      return {
+        game_id: gameId,
+        match_id: matchId,
+        profile_id: l.profile_id,
+        minutes: 0,
+        fgm,
+        fga: l.fga,
+        tpm,
+        tpa: l.tpa,
+        ftm,
+        fta: l.fta,
+        assists: l.assists,
+        reb_off: l.reb_off,
+        reb_def: l.reb_def,
+        steals: l.steals,
+        blocks: l.blocks,
+        turnovers: l.turnovers,
+        fouls: l.fouls,
+        points: 2 * fgm + tpm + ftm,
+        is_mvp: false,
+        source: "manual" as const,
+      };
+    });
+
+    const { error: statsError } = await supabase
+      .from("player_game_stats")
+      .insert(rows);
+    if (statsError) return { error: "บันทึกสถิติผู้เล่นไม่สำเร็จ" };
+  }
+
+  revalidatePath(`/games/${gameId}/stats`);
+  revalidatePath(`/games/${gameId}/live`);
+  revalidatePath(`/games/${gameId}`);
+  revalidatePath("/leaderboard");
+  revalidatePath("/dashboard");
+  return { saved: true };
+}
+
+/**
+ * โหมดจดสกอร์สด (legacy): บันทึกผลแมตช์ + สถิติรายคนของแมตช์นี้
  */
 export async function saveLiveMatch(
   gameId: string,
@@ -184,7 +339,6 @@ export async function saveLiveMatch(
   const nameOf = (id: string) =>
     teamRows?.find((t) => t.id === id)?.name ?? null;
 
-  // Create match and get its id
   const { data: match, error: matchError } = await supabase
     .from("matches")
     .insert({
@@ -195,6 +349,7 @@ export async function saveLiveMatch(
       score_b: d.score_b,
       team_a_name: nameOf(d.team_a),
       team_b_name: nameOf(d.team_b),
+      status: "finished",
     })
     .select("id")
     .single();

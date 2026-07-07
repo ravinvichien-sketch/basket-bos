@@ -50,7 +50,7 @@ export function MatchSection({
   return (
     <div className="rounded-xl2 bg-surface-raised border border-white/5 p-4 space-y-3">
       <h3 className="text-sm font-semibold text-ink-dim">
-        ผลการแข่ง (ทีม vs ทีม)
+        ผลการแข่ง
       </h3>
 
       {matches.length > 0 && (
@@ -148,14 +148,14 @@ export function MatchSection({
               value="1"
               className="h-4 w-4 accent-court"
             />
-            แมตช์วอร์มอัพ (ทีมยังมาไม่ครบ — สถิติยังนับ)
+            เกมส์วอร์มอัพ (ทีมยังมาไม่ครบ — สถิติยังนับ)
           </label>
           <button
             type="submit"
             disabled={pending}
             className="w-full h-11 rounded-xl bg-court text-white text-sm font-bold hover:bg-court-dark transition disabled:opacity-50"
           >
-            {pending ? "กำลังบันทึก..." : "บันทึกผลแมตช์ 🏆"}
+            {pending ? "กำลังบันทึก..." : "บันทึกผลเกมส์ 🏆"}
           </button>
           {state.error && (
             <p className="rounded-xl bg-red-500/10 text-red-400 text-sm px-4 py-2.5 text-center">

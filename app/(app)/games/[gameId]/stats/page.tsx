@@ -111,18 +111,26 @@ export default async function GameStatsPage({
     <main className="px-5 py-8 space-y-5">
       <header>
         <Link href={`/games/${gameId}`} className="text-xs text-ink-faint">
-          ← กลับหน้าเกม
+          ← กลับหน้า Session
         </Link>
         <h1 className="text-2xl font-extrabold mt-1">สถิติ 📊</h1>
         <p className="text-sm text-ink-dim">{game.title}</p>
       </header>
 
-      <Link
-        href={`/games/${gameId}/live`}
-        className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-court font-bold text-sm text-white hover:bg-court-dark transition"
-      >
-        🔴 จดสกอร์สด (ทีม vs ทีม)
-      </Link>
+      <div className="grid grid-cols-2 gap-2">
+        <Link
+          href={`/games/${gameId}/live`}
+          className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-court font-bold text-sm text-white hover:bg-court-dark transition"
+        >
+          🔴 จดสกอร์สด
+        </Link>
+        <Link
+          href={`/games/${gameId}/summary`}
+          className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
+        >
+          📊 สรุป Session
+        </Link>
+      </div>
 
       {hasStats && (
         <Card>

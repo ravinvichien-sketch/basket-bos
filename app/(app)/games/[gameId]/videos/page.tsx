@@ -42,17 +42,17 @@ export default async function VideosPage({
     <main className="px-5 py-8 space-y-5">
       <header>
         <Link href={`/games/${gameId}`} className="text-xs text-ink-faint">
-          ← กลับหน้าเกม
+          ← กลับหน้า Session
         </Link>
         <h1 className="text-2xl font-extrabold mt-1">ดูย้อนหลัง 🎬</h1>
         <p className="text-sm text-ink-dim">
-          {game.title} — แปะลิงก์ YouTube ของแต่ละแมตช์ไว้ดูย้อนหลัง
+          {game.title} — แปะลิงก์ YouTube ของแต่ละเกมส์ไว้ดูย้อนหลัง
         </p>
       </header>
 
       {matches.length === 0 ? (
         <Card className="py-10 text-center text-sm text-ink-faint space-y-3">
-          <p>ยังไม่มีแมตช์ในเกมนี้</p>
+          <p>ยังไม่มีเกมส์ใน Session นี้</p>
           <Link
             href={`/games/${gameId}/stats`}
             className="inline-flex h-10 items-center justify-center rounded-xl bg-surface-overlay px-4 text-sm font-semibold text-ink hover:bg-surface-overlay/70 transition"
@@ -69,7 +69,7 @@ export default async function VideosPage({
             <Card key={m.id} className="space-y-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-ink-faint tabular-nums">
-                  แมตช์ {i + 1}
+                  เกมส์ที่ {i + 1}
                 </span>
                 {m.is_warmup && (
                   <span className="rounded-full bg-amber-500/15 text-amber-400 px-2 py-0.5 text-[10px] font-semibold">
@@ -101,7 +101,7 @@ export default async function VideosPage({
                 >
                   <iframe
                     src={embed}
-                    title={`แมตช์ ${i + 1}`}
+                    title={`เกมส์ ${i + 1}`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                     className="absolute inset-0 h-full w-full"

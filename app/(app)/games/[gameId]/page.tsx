@@ -440,7 +440,7 @@ export default async function GameDetailPage({
 
       {canManage && (
         <Card>
-          <CardTitle>จัดการเกม (แอดมิน)</CardTitle>
+          <CardTitle>จัดการ Session (แอดมิน)</CardTitle>
           {activelyPlaying && (
             <AdminAddForm gameId={gameId} candidates={candidates} />
           )}

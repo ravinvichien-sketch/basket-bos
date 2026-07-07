@@ -19,6 +19,8 @@ export interface GameFormDefaults {
   max_players?: number;
   max_waitlist?: number;
   notes?: string;
+  game_duration_minutes?: number;
+  target_score?: number;
 }
 
 export function GameForm({
@@ -218,6 +220,37 @@ export function GameForm({
           defaultValue={defaults.max_waitlist ?? 5}
           required
         />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="game_duration_minutes">เวลาต่อเกมส์ (นาที) *</Label>
+          <Input
+            id="game_duration_minutes"
+            name="game_duration_minutes"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={60}
+            defaultValue={defaults.game_duration_minutes ?? 8}
+            required
+          />
+          <p className="mt-1 text-[11px] text-ink-faint">แต่ละเกมส์ย่อยกี่นาที (default 8)</p>
+        </div>
+        <div>
+          <Label htmlFor="target_score">แต้มเป้าหมายต่อเกมส์</Label>
+          <Input
+            id="target_score"
+            name="target_score"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={500}
+            defaultValue={defaults.target_score ?? ""}
+            placeholder="ไม่บังคับ"
+          />
+          <p className="mt-1 text-[11px] text-ink-faint">ถ้าใส่ — ถึงแต้มนี้ก่อน เวลาหยุดอัตโนมัติ</p>
+        </div>
       </div>
 
       <div>

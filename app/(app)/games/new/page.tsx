@@ -39,11 +39,11 @@ export default async function NewGamePage() {
 
   return (
     <main className="px-5 py-8 space-y-6">
-      <h1 className="text-2xl font-extrabold">สร้างเกมใหม่</h1>
+      <h1 className="text-2xl font-extrabold">สร้าง Session</h1>
       <GameForm
         action={createGame}
         groups={groups ?? []}
-        submitLabel="สร้างเกม 🏀"
+        submitLabel="สร้าง Session 🏀"
         showPublishToggle
         defaults={{
           starts_at: toBangkokInput(start.toISOString()),

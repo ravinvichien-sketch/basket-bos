@@ -32,6 +32,8 @@ function parseGameForm(formData: FormData) {
     max_players: formData.get("max_players"),
     max_waitlist: formData.get("max_waitlist"),
     notes: formData.get("notes"),
+    game_duration_minutes: formData.get("game_duration_minutes"),
+    target_score: formData.get("target_score"),
   });
 }
 
@@ -67,12 +69,14 @@ export async function createGame(
       max_players: d.max_players,
       max_waitlist: d.max_waitlist,
       notes: d.notes || null,
+      game_duration_minutes: d.game_duration_minutes ?? 8,
+      target_score: d.target_score || null,
       status: formData.get("publish") === "1" ? "open" : "draft",
     })
     .select("id")
     .single();
 
-  if (error || !game) return { error: "สร้างเกมไม่สำเร็จ กรุณาลองใหม่" };
+  if (error || !game) return { error: "สร้าง Session ไม่สำเร็จ กรุณาลองใหม่" };
 
   revalidatePath("/games");
   redirect(`/games/${game.id}`);
@@ -111,6 +115,8 @@ export async function updateGame(
       max_players: d.max_players,
       max_waitlist: d.max_waitlist,
       notes: d.notes || null,
+      game_duration_minutes: d.game_duration_minutes ?? 8,
+      target_score: d.target_score || null,
     })
     .eq("id", gameId);
 

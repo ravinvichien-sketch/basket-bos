@@ -129,13 +129,13 @@ export default async function GroupDetailPage({
 
       <Card>
         <div className="flex items-center justify-between">
-          <CardTitle>เกมของก๊วนนี้</CardTitle>
+          <CardTitle>Session ของก๊วนนี้</CardTitle>
           {isAdmin && (
             <Link
               href="/games/new"
               className="rounded-lg bg-court px-3 py-1.5 text-xs font-semibold text-white hover:bg-court-dark transition"
             >
-              + สร้างเกม
+              + สร้าง Session
             </Link>
           )}
         </div>
@@ -157,7 +157,7 @@ export default async function GroupDetailPage({
           </ul>
         ) : (
           <p className="mt-2 py-4 text-center text-sm text-ink-faint">
-            ยังไม่มีเกมของก๊วนนี้
+            ยังไม่มี Session ของก๊วนนี้
           </p>
         )}
       </Card>

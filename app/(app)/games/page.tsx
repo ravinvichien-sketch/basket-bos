@@ -50,13 +50,13 @@ export default async function GamesPage() {
   return (
     <main className="px-5 py-8 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold">เกม</h1>
+        <h1 className="text-2xl font-extrabold">Session 🏀</h1>
         {canCreate && (
           <Link
             href="/games/new"
             className="rounded-xl bg-court px-4 py-2 text-sm font-semibold text-white hover:bg-court-dark transition"
           >
-            + สร้างเกม
+            + สร้าง Session
           </Link>
         )}
       </div>
@@ -73,11 +73,11 @@ export default async function GamesPage() {
           ))
         ) : (
           <Card className="py-10 text-center text-ink-faint text-sm">
-            ยังไม่มีเกมเปิดรับสมัคร
+            ยังไม่มี Session
             {canCreate && (
               <>
                 <br />
-                กด &ldquo;+ สร้างเกม&rdquo; เพื่อเปิดนัดแรกของก๊วน 🏀
+                กด &ldquo;+ สร้าง Session&rdquo; เพื่อเปิดนัดแรกของก๊วน 🏀
               </>
             )}
           </Card>
