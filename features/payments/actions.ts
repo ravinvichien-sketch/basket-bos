@@ -37,8 +37,8 @@ export async function createPaymentRequests(
       .eq("status", "confirmed"),
   ]);
 
-  if (!game) return { error: "ไม่พบเกม" };
-  if (game.court_fee_thb <= 0) return { error: "เกมนี้ไม่มีค่าสนาม" };
+  if (!game) return { error: "ไม่พบ Session" };
+  if (game.court_fee_thb <= 0) return { error: "Session นี้ไม่มีค่าสนาม" };
   if (!confirmed || confirmed.length === 0) {
     return { error: "ยังไม่มีผู้เล่นตัวจริง" };
   }
@@ -132,7 +132,7 @@ export async function remindUnpaid(gameId: string) {
     for (const p of unpaid) {
       await pushToProfiles(
         [p.profile_id],
-        `💰 อย่าลืมจ่ายค่าสนามนะครับ\nเกม "${game?.title ?? ""}" ยอดของคุณ ฿${p.amount_thb.toLocaleString()}\nเปิดแอปสแกน QR ได้เลย`,
+        `💰 อย่าลืมจ่ายค่าสนามนะครับ\nSession "${game?.title ?? ""}" ยอดของคุณ ฿${p.amount_thb.toLocaleString()}\nเปิดแอปสแกน QR ได้เลย`,
         "payment_due"
       );
     }
@@ -155,8 +155,8 @@ export async function revertPayment(paymentId: string, gameId: string) {
   revalidatePayments(gameId);
 }
 
-/** แอดมิน/แอดมินก๊วน: แต่งตั้ง/เปลี่ยน "คนเก็บเงิน" ประจำเกม (ปล่อยว่าง = ยกเลิก).
- *  สิทธิ์ถูกบังคับที่ RPC (security definer) — แอดมินก๊วนแก้ได้เฉพาะเกมในก๊วนตัวเอง
+/** แอดมิน/แอดมินก๊วน: แต่งตั้ง/เปลี่ยน "คนเก็บเงิน" ประจำ Session (ปล่อยว่าง = ยกเลิก).
+ *  สิทธิ์ถูกบังคับที่ RPC (security definer) — แอดมินก๊วนแก้ได้เฉพาะ Session ในก๊วนตัวเอง
  *  และแก้ได้แค่ฟิลด์คนเก็บเงินเท่านั้น. */
 export async function setCollector(gameId: string, profileId: string | null) {
   const supabase = await createClient();

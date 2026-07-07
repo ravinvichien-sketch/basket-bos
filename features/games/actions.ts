@@ -50,7 +50,7 @@ export async function createGame(
   const d = parsed.data;
 
   if (!(await canManageGroup(d.group_id))) {
-    return { error: "คุณไม่มีสิทธิ์สร้างนัดในก๊วนนี้" };
+    return { error: "คุณไม่มีสิทธิ์สร้าง Session ในก๊วนนี้" };
   }
 
   const { data: game, error } = await supabase
@@ -88,14 +88,14 @@ export async function updateGame(
   formData: FormData
 ): Promise<ActionState> {
   const { supabase, canManage } = await getGameEditorContext(gameId);
-  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการนัดนี้" };
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
 
   const parsed = parseGameForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "ข้อมูลไม่ถูกต้อง" };
   }
   const d = parsed.data;
-  // ห้ามย้ายนัดไปก๊วนที่ตัวเองไม่ได้เป็นแอดมิน
+  // ห้ามย้าย Session ไปก๊วนที่ตัวเองไม่ได้เป็นแอดมิน
   if (!(await canManageGroup(d.group_id))) {
     return { error: "คุณไม่มีสิทธิ์กับก๊วนปลายทาง" };
   }
@@ -163,7 +163,7 @@ export async function changeGameStatus(gameId: string, next: GameStatus) {
   revalidatePath("/dashboard");
 }
 
-/** มอบ/คืนสิทธิ์คุมนัดนี้ชั่วคราว (ปล่อย null = คืน) — เฉพาะแอดมินตัวจริงของนัด */
+/** มอบ/คืนสิทธิ์คุม Session นี้ชั่วคราว (ปล่อย null = คืน) — เฉพาะแอดมินตัวจริงของ Session */
 export async function setActingAdmin(
   gameId: string,
   profileId: string | null

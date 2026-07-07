@@ -168,7 +168,7 @@ export default async function GameDetailPage({
     regsData = full.data ?? [];
   }
 
-  // แอดมิน "ตัวจริง" ของนัด = แอดมินเต็มระบบ หรือ แอดมินของก๊วนที่นัดนี้สังกัด
+  // แอดมิน "ตัวจริง" ของ Session = แอดมินเต็มระบบ หรือ แอดมินของก๊วนที่ Session นี้สังกัด
   let isRealManager = isAdmin;
   if (!isAdmin && game.group_id) {
     const { data: gm } = await supabase
@@ -179,7 +179,7 @@ export default async function GameDetailPage({
       .maybeSingle();
     isRealManager = gm?.role === "admin";
   }
-  // จัดการนัดได้ = แอดมินตัวจริง หรือ ผู้ได้รับมอบสิทธิ์ชั่วคราวของนัดนี้
+  // จัดการ Session ได้ = แอดมินตัวจริง หรือ ผู้ได้รับมอบสิทธิ์ชั่วคราวของ Session นี้
   const actingId = (game.acting_admin_id as string | null) ?? null;
   const canManage = isRealManager || actingId === user.id;
 
@@ -187,7 +187,7 @@ export default async function GameDetailPage({
   const confirmed = regs.filter((r) => r.status === "confirmed");
   const tentative = regs.filter((r) => r.status === "tentative");
   const waitlist = regs.filter((r) => r.status === "waitlisted");
-  // รายชื่อตัวจริงไว้ให้มอบสิทธิ์คุมนัด + ชื่อผู้ได้รับมอบปัจจุบัน
+  // รายชื่อตัวจริงไว้ให้มอบสิทธิ์คุม Session + ชื่อผู้ได้รับมอบปัจจุบัน
   const confirmedPlayers = confirmed.map((r) => ({
     id: r.profile_id,
     nickname: r.profiles?.nickname ?? "ผู้เล่น",

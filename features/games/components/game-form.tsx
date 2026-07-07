@@ -61,7 +61,7 @@ export function GameForm({
             className="h-12 w-full rounded-xl bg-surface-overlay border border-white/10 px-4 text-base focus:outline-none focus:ring-2 focus:ring-court"
           >
             <option value="" disabled>
-              เลือกก๊วนที่จะนัดเล่น...
+              เลือกก๊วนที่จะเปิด Session...
             </option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
@@ -73,7 +73,7 @@ export function GameForm({
       </div>
 
       <div>
-        <Label htmlFor="title">ชื่อเกม *</Label>
+        <Label htmlFor="title">ชื่อ Session *</Label>
         <Input
           id="title"
           name="title"

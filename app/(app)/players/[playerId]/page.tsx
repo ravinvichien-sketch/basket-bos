@@ -231,7 +231,7 @@ export default async function PlayerPage({
 
       {log && log.length > 0 && (
         <Card>
-          <CardTitle>เกมล่าสุด</CardTitle>
+          <CardTitle>Session ล่าสุด</CardTitle>
           <ul className="mt-2 divide-y divide-white/5">
             {log.map((g) => {
               const game = g.games as unknown as {
@@ -248,7 +248,7 @@ export default async function PlayerPage({
                     <span className="min-w-0">
                       <span className="block truncate">
                         {g.is_mvp && "⭐ "}
-                        {game?.title ?? "เกม"}
+                        {game?.title ?? "Session"}
                       </span>
                       <span className="text-xs text-ink-faint">
                         {game ? formatThaiDateTime(game.starts_at) : ""}

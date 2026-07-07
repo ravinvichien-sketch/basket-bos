@@ -134,7 +134,7 @@ export default async function GameStatsPage({
 
       {hasStats && (
         <Card>
-          <CardTitle>ผู้เล่นเด่นของนัดนี้ 🏅</CardTitle>
+          <CardTitle>ผู้เล่นเด่นของ Session นี้ 🏅</CardTitle>
           <div className="mt-3">
             <SessionLeaders rows={leaderRows} players={players} />
           </div>
@@ -211,7 +211,7 @@ export default async function GameStatsPage({
         </>
       ) : (
         <Card className="py-12 text-center text-sm text-ink-faint">
-          ยังไม่มีผู้เล่นตัวจริงในเกมนี้
+          ยังไม่มีผู้เล่นตัวจริงใน Session นี้
         </Card>
       )}
     </main>

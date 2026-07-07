@@ -157,7 +157,7 @@ export default async function PaymentsPage({
 
       <header>
         <Link href={`/games/${gameId}`} className="text-xs text-ink-faint">
-          ← กลับหน้าเกม
+          ← กลับหน้า Session
         </Link>
         <h1 className="text-2xl font-extrabold mt-1">ค่าสนาม 💰</h1>
         <p className="text-sm text-ink-dim">{game.title}</p>

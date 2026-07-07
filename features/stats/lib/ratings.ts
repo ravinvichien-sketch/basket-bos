@@ -44,7 +44,7 @@ export function computeOvr(stats?: SeasonStats | null): number {
     Math.max(0, (stats.fg_pct ?? 40) - 40) * 0.2 +
     Math.min(stats.mvp_count, 10) * 1.5;
 
-  // ความน่าเชื่อถือเพิ่มตามจำนวนเกม (อิ่มตัวที่ 10 เกม)
+  // ความน่าเชื่อถือเพิ่มตามจำนวน Session (อิ่มตัวที่ 10 Session)
   const weight = Math.min(stats.games_played, 10) / 10;
 
   return Math.round(clamp(BASE_RATING + production * weight, BASE_RATING, 99));

@@ -31,7 +31,7 @@ export async function generateTeams(
   formData: FormData
 ): Promise<ActionState> {
   const { supabase, canManage } = await getGameEditorContext(gameId);
-  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการนัดนี้" };
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
 
   const numTeams = Math.min(4, Math.max(2, Number(formData.get("num_teams") ?? 2)));
 
@@ -119,7 +119,7 @@ export async function createEmptyTeams(
   formData: FormData
 ): Promise<ActionState> {
   const { supabase, canManage } = await getGameEditorContext(gameId);
-  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการนัดนี้" };
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
 
   const numTeams = Math.min(
     4,
@@ -157,7 +157,7 @@ export async function assignPlayerToTeam(
   teamId: string
 ): Promise<ActionState> {
   const { supabase, canManage } = await getGameEditorContext(gameId);
-  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการนัดนี้" };
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
 
   const { data: teams } = await supabase
     .from("teams")
@@ -189,7 +189,7 @@ export async function removePlayerFromTeam(
   profileId: string
 ): Promise<ActionState> {
   const { supabase, canManage } = await getGameEditorContext(gameId);
-  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการนัดนี้" };
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
 
   const { data: teams } = await supabase
     .from("teams")
@@ -297,7 +297,7 @@ export async function swapPlayers(
   profileB: string
 ): Promise<ActionState> {
   const { supabase, canManage } = await getGameEditorContext(gameId);
-  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการนัดนี้" };
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
 
   const { data: teams } = await supabase
     .from("teams")
@@ -341,7 +341,7 @@ export async function renameTeam(
   name: string
 ): Promise<ActionState> {
   const { supabase, canManage } = await getGameEditorContext(gameId);
-  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการนัดนี้" };
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
 
   const n = name.trim();
   if (!n || n.length > 30) return { error: "ชื่อทีม 1–30 ตัวอักษร" };
@@ -378,7 +378,7 @@ export async function setTeamsLock(gameId: string, locked: boolean) {
         ).map((m) => m.profile_id);
         await pushToProfiles(
           memberIds,
-          `⚖️ ประกาศทีมแล้ว! เกม "${game?.title ?? ""}"\nคุณอยู่ ${team.name} 🔥`,
+          `⚖️ ประกาศทีมแล้ว! Session "${game?.title ?? ""}"\nคุณอยู่ ${team.name} 🔥`,
           "teams_ready"
         );
       }

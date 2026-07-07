@@ -47,13 +47,13 @@ export async function POST(req: Request) {
       replyText = [
         "🏀 **คำสั่งใน LINE**",
         "",
-        "`ลงชื่อ` หรือ `join` — ลงชื่อเกมถัดไป",
-        "`ลงชื่อ ชื่อเกม` — ลงชื่อเกมที่ระบุ",
-        "`คิว` หรือ `roster` — ดูรายชื่อเกมล่าสุด",
-        "`คิว ชื่อเกม` — ดูรายชื่อเกมที่ระบุ",
-        "`ถอน` หรือ `leave` — ถอนตัวจากเกมล่าสุด",
-        "`สถานะ` หรือ `status` — ดูเกมที่คุณลงชื่อไว้",
-        "`เกม` หรือ `games` — ดูเกมที่เปิดรับสมัคร",
+        "`ลงชื่อ` หรือ `join` — ลงชื่อ Session ถัดไป",
+        "`ลงชื่อ ชื่อเกม` — ลงชื่อ Session ที่ระบุ",
+        "`คิว` หรือ `roster` — ดูรายชื่อ Session ล่าสุด",
+        "`คิว ชื่อเกม` — ดูรายชื่อ Session ที่ระบุ",
+        "`ถอน` หรือ `leave` — ถอนตัวจาก Session ล่าสุด",
+        "`สถานะ` หรือ `status` — ดู Session ที่คุณลงชื่อไว้",
+        "`เกม` หรือ `games` — ดู Session ที่เปิดรับสมัคร",
         "`ช่วยเหลือ` หรือ `help` — แสดงคำสั่งนี้",
       ].join("\n");
     } else if (isGames) {
@@ -66,9 +66,9 @@ export async function POST(req: Request) {
         .limit(10);
 
       if (!games || games.length === 0) {
-        replyText = "🏀 ขณะนี้ยังไม่มีเกมเปิดรับสมัคร";
+        replyText = "🏀 ขณะนี้ยังไม่มี Session เปิดรับสมัคร";
       } else {
-        replyText = "🏀 **เกมที่เปิดรับสมัคร:**\n\n" +
+        replyText = "🏀 **Session ที่เปิดรับสมัคร:**\n\n" +
           games.map((g, i) =>
             `${i + 1}. ${g.title}\n   📅 ${new Date(g.starts_at).toLocaleDateString("th-TH")}\n   👥 ${g.max_players} คน`
           ).join("\n\n");
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
       );
 
       if (!game) {
-        replyText = "❌ ไม่พบเกม";
+        replyText = "❌ ไม่พบ Session";
       } else {
         const { data: regs } = await admin
           .from("registrations")

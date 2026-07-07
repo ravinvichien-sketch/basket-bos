@@ -39,7 +39,7 @@ async function isGroupAdminOf(
 }
 
 /**
- * สิทธิ์จัดการ "นัด" (game) นี้ = แอดมินเต็มระบบ หรือ แอดมินของก๊วนที่นัดสังกัด.
+ * สิทธิ์จัดการ "Session" นี้ = แอดมินเต็มระบบ หรือ แอดมินของก๊วนที่นัดสังกัด.
  * ใช้กับสร้าง/แก้/เปิด-ปิดนัด, จัดทีม, ตั้งคู่แข่ง ฯลฯ.
  */
 export async function getGameEditorContext(gameId: string) {
@@ -50,10 +50,10 @@ export async function getGameEditorContext(gameId: string) {
     .eq("id", gameId)
     .single();
 
-  // แอดมิน "ตัวจริง" ของนัด = แอดมินเต็มระบบ หรือ แอดมินก๊วนของนัดนั้น
+  // แอดมิน "ตัวจริง" ของ Session = แอดมินเต็มระบบ หรือ แอดมินก๊วนของ Session นั้น
   const isRealManager =
     isAdmin || (await isGroupAdminOf(supabase, game?.group_id ?? null, user.id));
-  // ผู้ได้รับมอบสิทธิ์คุมเฉพาะนัดนี้ (acting admin) ก็จัดการได้
+  // ผู้ได้รับมอบสิทธิ์คุมเฉพาะ Session นี้ (acting admin) ก็จัดการได้
   const isActing = game?.acting_admin_id === user.id;
   return {
     supabase,
@@ -64,7 +64,7 @@ export async function getGameEditorContext(gameId: string) {
   };
 }
 
-/** สิทธิ์สร้างนัดในก๊วนนี้ = แอดมินเต็มระบบ หรือ แอดมินของก๊วนนั้น. */
+/** สิทธิ์สร้าง Session ในก๊วนนี้ = แอดมินเต็มระบบ หรือ แอดมินของก๊วนนั้น. */
 export async function canManageGroup(groupId: string): Promise<boolean> {
   const { supabase, user, isAdmin } = await getAdminContext();
   if (isAdmin) return true;
@@ -73,7 +73,7 @@ export async function canManageGroup(groupId: string): Promise<boolean> {
 
 /**
  * ใครมีสิทธิ์ "แต่งตั้งคนเก็บเงิน" ของเกมนี้ = แอดมินเต็มระบบ
- * หรือ แอดมินของก๊วนที่เกมนั้นสังกัด (แยกก๊วน — ข้ามก๊วนไม่ได้).
+ * หรือ แอดมินของก๊วนที่ Session นั้นสังกัด (แยกก๊วน — ข้ามก๊วนไม่ได้).
  */
 export async function getCollectorAdminContext(gameId: string) {
   const { supabase, user, isAdmin } = await getAdminContext();

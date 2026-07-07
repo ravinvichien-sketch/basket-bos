@@ -90,7 +90,7 @@ export default async function TeamsPage({
     <main className="px-5 py-8 space-y-5">
       <header>
         <Link href={`/games/${gameId}`} className="text-xs text-ink-faint">
-          ← กลับหน้าเกม
+          ← กลับหน้า Session
         </Link>
         <div className="mt-1 flex items-center justify-between">
           <h1 className="text-2xl font-extrabold">จัดทีม ⚖️</h1>

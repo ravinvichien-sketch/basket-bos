@@ -9,12 +9,12 @@ interface Notification {
 }
 
 function messageFor(n: Notification): string {
-  const title = n.payload.game_title ?? "เกม";
+  const title = n.payload.game_title ?? "Session";
   switch (n.type) {
     case "promoted":
       return `🎉 คุณได้เลื่อนจากคิวสำรองขึ้นเป็นตัวจริงใน "${title}"`;
     case "added_by_admin":
-      return `แอดมินเพิ่มคุณเข้าเกม "${title}"`;
+      return `แอดมินเพิ่มคุณเข้า Session "${title}"`;
     case "ref_approval_needed":
       return `🙋 มีคนระบุว่าเป็นเพื่อนที่คุณชวนมาใน "${title}" — แตะเพื่อกดยืนยัน`;
     default:

@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { setActingAdmin } from "../actions";
 
 /**
- * มอบสิทธิ์คุม "เฉพาะนัดนี้" ให้คนอื่นชั่วคราว (เผื่อแอดมินก๊วนไม่ว่าง)
- * นัดใหม่จะเริ่มที่ค่า default เสมอ (ไม่มีการมอบต่อ)
+ * มอบสิทธิ์คุม "เฉพาะ Session นี้" ให้คนอื่นชั่วคราว (เผื่อแอดมินก๊วนไม่ว่าง)
+ * Session ใหม่จะเริ่มที่ค่า default เสมอ (ไม่มีการมอบต่อ)
  */
 export function DelegateAdminControl({
   gameId,
@@ -36,7 +36,7 @@ export function DelegateAdminControl({
   return (
     <div className="mt-3 rounded-xl bg-surface-overlay p-3 space-y-2">
       <p className="text-xs text-ink-dim">
-        มอบสิทธิ์คุมนัดนี้ชั่วคราว (เฉพาะนัดนี้ — นัดใหม่กลับเป็นค่าเดิม)
+        มอบสิทธิ์คุม Session นี้ชั่วคราว (เฉพาะ Session นี้ — Session ใหม่กลับเป็นค่าเดิม)
       </p>
 
       {actingId ? (

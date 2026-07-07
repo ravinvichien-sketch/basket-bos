@@ -113,7 +113,7 @@ export default async function DashboardPage() {
                 href={g ? `/games/${g.id}/payments` : "/games"}
                 className="block text-sm hover:underline"
               >
-                {g?.title ?? "เกม"} — ฿{p.amount_thb.toLocaleString()} →
+                {g?.title ?? "Session"} — ฿{p.amount_thb.toLocaleString()} →
               </Link>
             );
           })}
@@ -143,7 +143,7 @@ export default async function DashboardPage() {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <CardTitle>เกมที่กำลังจะมาถึง</CardTitle>
+          <CardTitle>Session ที่กำลังจะมาถึง</CardTitle>
           <Link href="/games" className="text-xs text-court font-semibold">
             ดูทั้งหมด →
           </Link>
@@ -158,14 +158,14 @@ export default async function DashboardPage() {
           ))
         ) : (
           <Card className="py-8 text-center text-ink-faint text-sm">
-            ยังไม่มีเกมเปิดรับสมัคร
+            ยังไม่มี Session เปิดรับสมัคร
           </Card>
         )}
       </section>
 
       <div className="grid grid-cols-3 gap-3">
         {[
-          ["เกมที่เล่น", String(seasonStats?.games_played ?? 0)],
+          ["Session ที่เล่น", String(seasonStats?.games_played ?? 0)],
           [
             "แต้มเฉลี่ย",
             seasonStats && seasonStats.games_played > 0

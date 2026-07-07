@@ -75,7 +75,7 @@ async function notifyPromoted(gameId: string) {
     if (promoted && promoted.length > 0) {
       await pushToProfiles(
         promoted.map((r) => r.profile_id),
-        `🎉 คุณได้เลื่อนจากคิวสำรองขึ้นเป็นตัวจริงในเกม "${game?.title ?? ""}" แล้ว เจอกันในสนาม!`,
+        `🎉 คุณได้เลื่อนจากคิวสำรองขึ้นเป็นตัวจริงใน Session "${game?.title ?? ""}" แล้ว เจอกันในสนาม!`,
         "promoted"
       );
     }
@@ -90,11 +90,11 @@ export interface ActionState {
 
 const ERROR_MESSAGES: Record<string, string> = {
   NOT_AUTHENTICATED: "กรุณาเข้าสู่ระบบใหม่",
-  GAME_NOT_FOUND: "ไม่พบเกมนี้",
+  GAME_NOT_FOUND: "ไม่พบ Session นี้",
   REG_CLOSED: "ยังไม่เปิดรับสมัคร หรือปิดรับไปแล้ว",
   ALREADY_REGISTERED: "คุณลงชื่อไปแล้ว",
   WAITLIST_FULL: "คิวสำรองเต็มแล้ว",
-  NOT_REGISTERED: "คุณยังไม่ได้ลงชื่อในเกมนี้",
+  NOT_REGISTERED: "คุณยังไม่ได้ลงชื่อใน Session นี้",
   DEADLINE_PASSED: "เลยเวลาถอนตัวแล้ว กรุณาติดต่อแอดมิน",
   FORBIDDEN: "คุณไม่มีสิทธิ์ทำรายการนี้",
   NOT_GUEST: "ลงชื่อแทนได้เฉพาะแขกเท่านั้น",
@@ -320,7 +320,7 @@ export async function adminAddPlayer(
   return {};
 }
 
-/** แอดมิน: ดึงผู้เล่นเข้าเกมทีเดียวหลายคน (จากใครก็ได้ในแอป) */
+/** แอดมิน: ดึงผู้เล่นเข้า Session ทีเดียวหลายคน (จากใครก็ได้ในแอป) */
 export async function adminAddPlayers(
   gameId: string,
   profileIds: string[]

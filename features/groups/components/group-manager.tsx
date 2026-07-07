@@ -53,7 +53,7 @@ export function GroupManager({
     run(() => renameGroup(groupId, name));
   };
   const remove = () => {
-    if (!window.confirm(`ลบก๊วน “${groupName}”? (เกมเก่ายังอยู่)`)) return;
+    if (!window.confirm(`ลบก๊วน “${groupName}”? (Session เก่ายังอยู่)`)) return;
     start(async () => {
       const res = await deleteGroup(groupId);
       if (res?.error) setError(res.error);

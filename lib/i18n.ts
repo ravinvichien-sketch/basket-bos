@@ -8,7 +8,7 @@ export type Lang = "th" | "en";
 const th = {
   // แถบเมนูล่าง
   "nav.home": "หน้าแรก",
-  "nav.games": "เกม",
+  "nav.games": "Session",
   "nav.groups": "ก๊วน",
   "nav.leaderboard": "อันดับ",
   "nav.profile": "โปรไฟล์",
@@ -53,8 +53,8 @@ const th = {
 
   // แดชบอร์ด
   "dash.hello": "สวัสดี",
-  "dash.upcoming": "เกมที่จะถึง",
-  "dash.noGames": "ยังไม่มีเกม",
+  "dash.upcoming": "Session ที่จะถึง",
+  "dash.noGames": "ยังไม่มี Session",
 } as const;
 
 type Dict = Record<keyof typeof th, string>;

@@ -16,7 +16,7 @@ export interface Submission {
   note: string | null;
 }
 
-/** แอดมินของนัด: อนุมัติ/ปฏิเสธ สถิติที่นักกีฬาส่งมาย้อนหลัง */
+/** แอดมินของ Session: อนุมัติ/ปฏิเสธ สถิติที่นักกีฬาส่งมาย้อนหลัง */
 export function SubmissionsReview({
   gameId,
   submissions,

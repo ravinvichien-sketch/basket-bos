@@ -104,7 +104,7 @@ async function handleJoin(
       .eq("game_id", gameId)
       .eq("status", "waitlisted");
     if ((waitlistCount ?? 0) >= (game.max_waitlist ?? 0)) {
-      await replyLineText(replyToken, "❌ เกมเต็มแล้ว");
+      await replyLineText(replyToken, "❌ Session เต็มแล้ว");
       return;
     }
     newStatus = "waitlisted";
@@ -133,13 +133,13 @@ async function replyHelp(replyToken: string) {
   const text = [
     "🏀 **คำสั่งใน LINE**",
     "",
-    "`ลงชื่อ` หรือ `join` — ลงชื่อเกมถัดไป",
-    "`ลงชื่อ ชื่อเกม` — ลงชื่อเกมที่ระบุ",
-    "`คิว` หรือ `roster` — ดูรายชื่อเกมล่าสุด",
-    "`คิว ชื่อเกม` — ดูรายชื่อเกมที่ระบุ",
-    "`ถอน` หรือ `leave` — ถอนตัวจากเกมล่าสุด",
-    "`สถานะ` หรือ `status` — ดูเกมที่คุณลงชื่อไว้",
-    "`เกม` หรือ `games` — ดูเกมที่เปิดรับสมัคร",
+    "`ลงชื่อ` หรือ `join` — ลงชื่อ Session ถัดไป",
+    "`ลงชื่อ ชื่อเกม` — ลงชื่อ Session ที่ระบุ",
+    "`คิว` หรือ `roster` — ดูรายชื่อ Session ล่าสุด",
+    "`คิว ชื่อเกม` — ดูรายชื่อ Session ที่ระบุ",
+    "`ถอน` หรือ `leave` — ถอนตัวจาก Session ล่าสุด",
+    "`สถานะ` หรือ `status` — ดู Session ที่คุณลงชื่อไว้",
+    "`เกม` หรือ `games` — ดู Session ที่เปิดรับสมัคร",
     "`ช่วยเหลือ` หรือ `help` — แสดงคำสั่งนี้",
     "",
     "เปิดแอป: " + (process.env.NEXT_PUBLIC_APP_URL ?? ""),
@@ -168,7 +168,7 @@ async function handleEvent(
   if (event.type === "follow") {
     await replyLineText(
       replyToken,
-      `สวัสดีครับ 🏀 ยินดีต้อนรับสู่ Basket Bos!\nระบบจะแจ้งเตือนคุณเมื่อ: เปิดรับสมัครเกมใหม่, ได้เลื่อนจากคิวสำรอง, ประกาศทีม และเตือนค่าสนาม\n\nเปิดแอป: ${appUrl}`
+      `สวัสดีครับ 🏀 ยินดีต้อนรับสู่ Basket Bos!\nระบบจะแจ้งเตือนคุณเมื่อ: เปิดรับสมัคร Session ใหม่, ได้เลื่อนจากคิวสำรอง, ประกาศทีม และเตือนค่าสนาม\n\nเปิดแอป: ${appUrl}`
     );
     return;
   }
@@ -197,7 +197,7 @@ async function handleEvent(
     if (action === "join" && param) {
       const gameId = await resolveGame(admin, param);
       if (!gameId) {
-        await replyLineText(replyToken, "❌ ไม่พบเกมที่เปิดรับ");
+        await replyLineText(replyToken, "❌ ไม่พบ Session ที่เปิดรับ");
         return;
       }
       await handleJoin(admin, replyToken, lineUserId, gameId);
@@ -207,7 +207,7 @@ async function handleEvent(
     if (action === "roster") {
       const gameId = await resolveGame(admin, param ?? "latest");
       if (!gameId) {
-        await replyLineText(replyToken, "❌ ไม่มีเกมที่เปิดรับอยู่");
+        await replyLineText(replyToken, "❌ ไม่มี Session ที่เปิดรับอยู่");
         return;
       }
       await replyWithRoster(admin, replyToken, gameId);
@@ -252,7 +252,7 @@ async function handleEvent(
       const keyword = text.replace(/^(ลงชื่อ|join)\s*/i, "").trim() || "latest";
       const gameId = await resolveGame(admin, keyword);
       if (!gameId) {
-        await replyLineText(replyToken, "❌ ไม่พบเกมที่เปิดรับ — พิมพ์ `เกม` เพื่อดูรายชื่อเกม");
+        await replyLineText(replyToken, "❌ ไม่พบ Session ที่เปิดรับ — พิมพ์ `เกม` เพื่อดูรายชื่อ Session");
         return;
       }
       await handleJoin(admin, replyToken, lineUserId, gameId);
@@ -263,7 +263,7 @@ async function handleEvent(
       const keyword = text.replace(/^(คิว|ดูคิว|roster)\s*/i, "").trim() || "latest";
       const gameId = await resolveGame(admin, keyword);
       if (!gameId) {
-        await replyLineText(replyToken, "❌ ไม่มีเกมที่เปิดรับอยู่");
+        await replyLineText(replyToken, "❌ ไม่มี Session ที่เปิดรับอยู่");
         return;
       }
       await replyWithRoster(admin, replyToken, gameId);
@@ -283,7 +283,7 @@ async function handleEvent(
       }
       const gameId = await resolveGame(admin, "latest");
       if (!gameId) {
-        await replyLineText(replyToken, "❌ ไม่มีเกมที่เปิดรับอยู่");
+        await replyLineText(replyToken, "❌ ไม่มี Session ที่เปิดรับอยู่");
         return;
       }
       const { error } = await admin.rpc("cancel_registration", {
@@ -318,7 +318,7 @@ async function handleEvent(
         .limit(5);
 
       if (!regs || regs.length === 0) {
-        await replyLineText(replyToken, "📭 คุณยังไม่ได้ลงชื่อในเกมไหนเลย");
+        await replyLineText(replyToken, "📭 คุณยังไม่ได้ลงชื่อใน Session ไหนเลย");
         return;
       }
       const lines = regs.map((r) => {
@@ -388,7 +388,7 @@ async function replyGamesList(admin: AdminClient, replyToken: string) {
   if (!games || games.length === 0) {
     await replyLineText(
       replyToken,
-      "🏀 ขณะนี้ยังไม่มีเกมเปิดรับสมัคร\n\nติดตามในแอป: " + appUrl
+      "🏀 ขณะนี้ยังไม่มี Session เปิดรับสมัคร\n\nติดตามในแอป: " + appUrl
     );
     return;
   }
@@ -453,7 +453,7 @@ async function replyWithRoster(
   ]);
 
   if (!game) {
-    await replyLineText(replyToken, "❌ ไม่พบเกมนี้");
+    await replyLineText(replyToken, "❌ ไม่พบ Session นี้");
     return;
   }
 

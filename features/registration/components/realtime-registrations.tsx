@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * รายชื่อสดสำหรับทุกคนที่เปิดหน้าเกมอยู่:
+ * รายชื่อสดสำหรับทุกคนที่เปิดหน้า Session อยู่:
  * 1) Supabase Realtime (เร็วสุด — เด้งทันที)
  * 2) Fallback: รีเฟรชทุก 8 วิ + ตอนสลับกลับมาที่แอป
  *    (กันกรณี websocket ถูกบล็อคในเบราว์เซอร์ของ LINE/บางเครือข่าย)

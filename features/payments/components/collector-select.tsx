@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { setCollector } from "../actions";
 
-/** แอดมินแต่งตั้ง "คนเก็บเงิน" ประจำเกม จากรายชื่อผู้เล่นตัวจริง */
+/** แอดมินแต่งตั้ง "คนเก็บเงิน" ประจำ Session จากรายชื่อผู้เล่นตัวจริง */
 export function CollectorSelect({
   gameId,
   current,
@@ -18,7 +18,7 @@ export function CollectorSelect({
 
   return (
     <div className="space-y-1">
-      <label className="text-xs text-ink-faint">คนเก็บเงินประจำเกมนี้</label>
+      <label className="text-xs text-ink-faint">คนเก็บเงินประจำ Session นี้</label>
       <select
         value={value}
         disabled={pending}

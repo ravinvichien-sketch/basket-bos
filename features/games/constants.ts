@@ -33,5 +33,5 @@ export const TRANSITION_LABELS: Partial<Record<GameStatus, string>> = {
   closed: "ปิดรับสมัคร",
   in_progress: "เริ่มแข่ง",
   completed: "จบ Session",
-  cancelled: "ยกเลิกเกม",
+  cancelled: "ยกเลิก Session",
 };

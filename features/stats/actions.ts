@@ -427,7 +427,7 @@ export async function submitOwnStats(
   return { saved: true };
 }
 
-/** แอดมินของนัด: อนุมัติ/ปฏิเสธ สถิติที่นักกีฬาส่งมา */
+/** แอดมินของ Session: อนุมัติ/ปฏิเสธ สถิติที่นักกีฬาส่งมา */
 export async function reviewSubmission(
   submissionId: string,
   gameId: string,
@@ -441,7 +441,7 @@ export async function reviewSubmission(
   if (error) {
     return {
       error: error.message?.includes("FORBIDDEN")
-        ? "เฉพาะแอดมินของนัดนี้เท่านั้น"
+        ? "เฉพาะแอดมินของ Session นี้เท่านั้น"
         : "ทำรายการไม่สำเร็จ",
     };
   }

@@ -22,7 +22,7 @@ export function SubmitStatsForm({ gameId }: { gameId: string }) {
   return (
     <form action={formAction} className="space-y-3">
       <p className="text-xs text-ink-faint">
-        กรอกสถิติของคุณในนัดนี้ แล้วส่งให้แอดมินยืนยันก่อนถึงจะนับ
+        กรอกสถิติของคุณใน Session นี้ แล้วส่งให้แอดมินยืนยันก่อนถึงจะนับ
       </p>
       <div className="grid grid-cols-3 gap-2">
         {FIELDS.map(([name, label]) => (

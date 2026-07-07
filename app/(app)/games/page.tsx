@@ -8,7 +8,7 @@ export default async function GamesPage() {
   const { supabase, user, isAdmin } = await getAdminContext();
   const nowIso = new Date().toISOString();
 
-  // สร้างนัดได้ถ้าเป็นแอดมินเต็มระบบ หรือเป็นแอดมินของก๊วนใดก๊วนหนึ่ง
+  // สร้าง Session ได้ถ้าเป็นแอดมินเต็มระบบ หรือเป็นแอดมินของก๊วนใดก๊วนหนึ่ง
   let canCreate = isAdmin;
   if (!isAdmin) {
     const { count } = await supabase
@@ -29,27 +29,26 @@ export default async function GamesPage() {
     groupFilter = (myGrp ?? []).map((m) => m.group_id);
   }
 
-  // ถ้าไม่ใช่แอดมิน และไม่ได้เป็นสมาชิกก๊วนไหน → ว่างเปล่า
-  const showUpcoming = groupFilter !== null && groupFilter.length === 0
-    ? { data: [] as any[] }
-    : supabase
-        .from("games")
-        .select("*")
-        .in("group_id", groupFilter ?? [])
-        .gte("ends_at", nowIso)
-        .neq("status", "cancelled")
-        .order("starts_at", { ascending: true });
+  const baseQuery = () => supabase.from("games").select("*").neq("status", "cancelled");
+  const applyFilter = (q: ReturnType<typeof baseQuery>) => {
+    if (groupFilter !== null) return q.in("group_id", groupFilter);
+    return q; // super admin — ไม่ filter
+  };
 
-  const showPast = groupFilter !== null && groupFilter.length === 0
-    ? { data: [] as any[] }
-    : supabase
-        .from("games")
-        .select("*")
-        .lt("ends_at", nowIso)
-        .neq("status", "cancelled")
-        .in("group_id", groupFilter ?? [])
-        .order("starts_at", { ascending: false })
-        .limit(10);
+  const showUpcoming =
+    groupFilter !== null && groupFilter.length === 0
+      ? ({ data: [] as any[] } as const)
+      : applyFilter(baseQuery())
+          .gte("ends_at", nowIso)
+          .order("starts_at", { ascending: true });
+
+  const showPast =
+    groupFilter !== null && groupFilter.length === 0
+      ? ({ data: [] as any[] } as const)
+      : applyFilter(baseQuery())
+          .lt("ends_at", nowIso)
+          .order("starts_at", { ascending: false })
+          .limit(10);
 
   const [{ data: upcoming }, { data: past }] = await Promise.all([
     showUpcoming,
@@ -98,7 +97,7 @@ export default async function GamesPage() {
             {canCreate && (
               <>
                 <br />
-                กด &ldquo;+ สร้าง Session&rdquo; เพื่อเปิดนัดแรกของก๊วน 🏀
+                กด &ldquo;+ สร้าง Session&rdquo; เพื่อเปิด Session แรกของก๊วน 🏀
               </>
             )}
           </Card>

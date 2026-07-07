@@ -30,7 +30,7 @@ const CATS = [
 
 const medal = (i: number) => ["🥇", "🥈", "🥉"][i] ?? `${i + 1}.`;
 
-/** สรุปผู้เล่นเด่นของนัดนี้ (Top 3 ต่อหมวด) — คำนวณจากสถิติรวมทั้งนัด */
+/** สรุปผู้เล่นเด่นของ Session นี้ (Top 3 ต่อหมวด) — คำนวณจากสถิติรวมทั้ง Session */
 export function SessionLeaders({
   rows,
   players,

@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { adminAddPlayers } from "../actions";
 
-/** แอดมิน: ค้นหา + เลือกหลายคน แล้วดึงเข้าเกมทีเดียว */
+/** แอดมิน: ค้นหา + เลือกหลายคน แล้วดึงเข้า Session ทีเดียว */
 export function AdminAddForm({
   gameId,
   candidates,
@@ -57,7 +57,7 @@ export function AdminAddForm({
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="ค้นหาชื่อผู้เล่นเพื่อเพิ่มเข้าเกม..."
+        placeholder="ค้นหาชื่อผู้เล่นเพื่อเพิ่มเข้า Session..."
         className="h-11 w-full rounded-xl bg-surface-overlay border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court"
       />
       <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 divide-y divide-white/5">
