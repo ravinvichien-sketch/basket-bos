@@ -48,7 +48,10 @@ export async function createGroup(
   if (error?.message?.includes("NO_LINE_GROUP")) {
     return { error: "กรุณาใส่ LINE Group ID" };
   }
-  if (error) return { error: "สร้างก๊วนไม่สำเร็จ" };
+  if (error?.message?.includes("LINE_GROUP_EXISTS")) {
+    return { error: "LINE Group ID นี้ถูกใช้ไปแล้ว — แต่ละก๊วนต้องใช้ LINE Group แยกกัน" };
+  }
+  if (error) return { error: error.message };
 
   revalidateGroups();
   return {};

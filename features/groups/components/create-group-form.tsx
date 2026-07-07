@@ -26,7 +26,7 @@ export function CreateGroupForm() {
           className="h-11 w-full rounded-xl bg-surface-overlay border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court"
         />
         <p className="text-[11px] text-ink-faint pl-1">
-          ต้องมี LINE Group ก่อนตั้งก๊วน — ID ดูได้จากแอดมินระบบ
+          เชิญบอท Basket Bos เข้า LINE Group → บอทจะตอบ ID กลับมา — คัดลอกมาวางตรงนี้
         </p>
       </div>
       <button

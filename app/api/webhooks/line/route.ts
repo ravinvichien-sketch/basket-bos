@@ -175,14 +175,23 @@ async function handleEvent(
 
   // --- join bot (invited to group) → bind group ---
   if (event.type === "join" && event.source?.groupId) {
+    const groupId = event.source.groupId;
     await admin.from("app_settings").upsert({
       key: "line_group_id",
-      value: { id: event.source.groupId },
+      value: { id: groupId },
       updated_at: new Date().toISOString(),
     });
     await replyLineText(
       replyToken,
-      `ผูกกลุ่มนี้กับ Basket Bos แล้ว 🏀\nต่อไปนี้เวลามีคนลงชื่อ/ถอนตัว ระบบจะส่งรายชื่ออัพเดตเข้ากลุ่มนี้อัตโนมัติ\n\nเปิดแอป: ${appUrl}`
+      [
+        `ผูกกลุ่มนี้กับ Basket Bos แล้ว 🏀`,
+        ``,
+        `LINE Group ID ของคุณคือ:`,
+        `${groupId}`,
+        ``,
+        `คัดลอก ID ด้านบนไปวางในแอปตอนสร้างก๊วน`,
+        `แล้วระบบจะแจ้งเตือนนัดลงสนามมาที่กลุ่มนี้โดยอัตโนมัติ`,
+      ].join("\n")
     );
     return;
   }
