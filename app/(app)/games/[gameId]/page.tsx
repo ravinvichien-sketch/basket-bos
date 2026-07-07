@@ -15,6 +15,7 @@ import { RealtimeRegistrations } from "@/features/registration/components/realti
 import { AdminAddForm } from "@/features/registration/components/admin-add-form";
 import { DeleteGameButton } from "@/features/games/components/delete-game-button";
 import { DelegateAdminControl } from "@/features/games/components/delegate-admin-control";
+import { StatKeeperManager } from "@/features/games/components/stat-keeper-manager";
 import { GuestAddForm } from "@/features/registration/components/guest-add-form";
 import { RefApproveButton } from "@/features/registration/components/ref-approve-button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -251,6 +252,27 @@ export default async function GameDetailPage({
     }
   }
 
+  // Stat keepers
+  const { data: keeperRows } = await supabase
+    .from("game_stat_keepers")
+    .select("profile_id, profiles!profile_id(nickname, avatar_url)")
+    .eq("game_id", gameId);
+  const currentKeepers = ((keeperRows ?? []) as unknown as {
+    profile_id: string;
+    profiles: { nickname: string; avatar_url: string | null } | null;
+  }[]).map((kr) => ({
+    id: kr.profile_id,
+    nickname: kr.profiles?.nickname ?? "ผู้เล่น",
+    avatarUrl: kr.profiles?.avatar_url ?? null,
+  }));
+  const keeperCandidatePool = confirmed
+    .filter((r) => r.status === "confirmed")
+    .map((r) => ({
+      id: r.profile_id,
+      nickname: r.profiles?.nickname ?? "ผู้เล่น",
+      avatarUrl: r.profiles?.avatar_url ?? null,
+    }));
+
   const groupName =
     (game.groups as { name?: string } | null)?.name ?? null;
   const rows: [string, string][] = [
@@ -334,6 +356,12 @@ export default async function GameDetailPage({
             className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
           >
             📊 สถิติ
+          </Link>
+          <Link
+            href={`/games/${gameId}/live`}
+            className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
+          >
+            🔴 จดสกอร์สด
           </Link>
           <Link
             href={`/games/${gameId}/videos`}
@@ -452,6 +480,21 @@ export default async function GameDetailPage({
               candidates={confirmedPlayers.filter((p) => p.id !== actingId)}
             />
           )}
+          {activelyPlaying && (
+            <details className="-mx-4 mt-3 border-t border-white/5 px-4 pt-3">
+              <summary className="cursor-pointer text-xs text-ink-faint hover:text-ink transition select-none">
+                📋 ผู้ช่วยจดสถิติ ({currentKeepers.length})
+              </summary>
+              <div className="mt-3">
+                <StatKeeperManager
+                  gameId={gameId}
+                  currentKeepers={currentKeepers}
+                  candidates={keeperCandidatePool}
+                  canManage={canManage}
+                />
+              </div>
+            </details>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-2">
             {STATUS_TRANSITIONS[status].map((next) => (
               <form
@@ -481,7 +524,7 @@ export default async function GameDetailPage({
         </Card>
       )}
 
-      {canManage && (
+      {isAdmin && (
         <DeleteGameButton gameId={gameId} />
       )}
     </main>

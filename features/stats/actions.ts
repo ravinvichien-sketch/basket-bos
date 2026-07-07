@@ -451,6 +451,104 @@ export async function reviewSubmission(
   return { saved: true };
 }
 
+/**
+ * บันทึกเหตุการณ์เดียวในเกมส์ที่กำลังเล่น (ใช้โดยผู้ช่วยจดสถิติหลายคนพร้อมกัน)
+ * —— upsert เข้า player_game_stats ตาม (game_id, match_id, profile_id)
+ */
+export async function recordMatchEvent(
+  matchId: string,
+  gameId: string,
+  profileId: string,
+  eventKey: string
+): Promise<ActionState> {
+  const { supabase } = await requireUser();
+
+  // อนุญาตเฉพาะ admin / stat keeper
+  const { data: game } = await supabase
+    .from("games")
+    .select("group_id, acting_admin_id, status")
+    .eq("id", gameId)
+    .single();
+  if (!game || game.status === "completed") {
+    return { error: "Session นี้จบแล้ว" };
+  }
+  if (game.status !== "in_progress") {
+    return { error: "Session นี้ยังไม่เริ่มแข่ง" };
+  }
+
+  const userId = (await supabase.auth.getUser()).data.user?.id;
+  if (!userId) return { error: "ไม่พบผู้ใช้" };
+
+  const isAdmin = (await supabase.from("profiles").select("role").eq("id", userId).single()).data?.role === "admin";
+  const isGroupAdmin = (await supabase.from("group_members").select("role").eq("group_id", game.group_id).eq("profile_id", userId).single()).data?.role === "admin";
+  const isActingAdmin = game.acting_admin_id === userId;
+  const { count } = await supabase
+    .from("game_stat_keepers")
+    .select("profile_id", { count: "exact", head: true })
+    .eq("game_id", gameId)
+    .eq("profile_id", userId);
+  const isStatKeeper = (count ?? 0) > 0;
+
+  if (!isAdmin && !isGroupAdmin && !isActingAdmin && !isStatKeeper) {
+    return { error: "คุณไม่มีสิทธิ์จดสถิติใน Session นี้" };
+  }
+
+  // Compute delta for the event
+  const delta = { fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0 };
+  switch (eventKey) {
+    case "make2": delta.fgm = 1; delta.fga = 1; break;
+    case "make3": delta.fgm = 1; delta.fga = 1; delta.tpm = 1; delta.tpa = 1; break;
+    case "makeFt": delta.ftm = 1; delta.fta = 1; break;
+    case "miss": delta.fga = 1; break;
+    // Stat chips don't change scoring, just add increment later
+  }
+
+  // Upsert: read existing, add delta, save
+  const { data: existing } = await supabase
+    .from("player_game_stats")
+    .select("*")
+    .eq("game_id", gameId)
+    .eq("match_id", matchId)
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  const points = existing?.points ?? 0;
+  const fgm = (existing?.fgm ?? 0) + delta.fgm;
+  const fga = (existing?.fga ?? 0) + delta.fga;
+  const tpm = (existing?.tpm ?? 0) + delta.tpm;
+  const tpa = (existing?.tpa ?? 0) + delta.tpa;
+  const ftm = (existing?.ftm ?? 0) + delta.ftm;
+  const fta = (existing?.fta ?? 0) + delta.fta;
+
+  // Stat chips: increment if event is a chip
+  const assists = (existing?.assists ?? 0) + (eventKey === "ast" ? 1 : 0);
+  const reb_def = (existing?.reb_def ?? 0) + (eventKey === "reb" ? 1 : 0);
+  const steals = (existing?.steals ?? 0) + (eventKey === "stl" ? 1 : 0);
+  const blocks = (existing?.blocks ?? 0) + (eventKey === "blk" ? 1 : 0);
+  const turnovers = (existing?.turnovers ?? 0) + (eventKey === "tov" ? 1 : 0);
+
+  const newPoints = 2 * fgm + tpm + ftm;
+
+  const { error } = await supabase.from("player_game_stats").upsert(
+    {
+      game_id: gameId,
+      match_id: matchId,
+      profile_id: profileId,
+      minutes: existing?.minutes ?? 0,
+      fgm, fga, tpm, tpa, ftm, fta,
+      assists, reb_def, steals, blocks, turnovers,
+      fouls: existing?.fouls ?? 0,
+      points: newPoints,
+      is_mvp: existing?.is_mvp ?? false,
+      source: "manual",
+    },
+    { onConflict: "game_id,profile_id,match_id" }
+  );
+  if (error) return { error: "บันทึกไม่สำเร็จ" };
+
+  return { saved: true };
+}
+
 export async function deleteMatch(matchId: string, gameId: string) {
   const { supabase, canManage } = await getGameEditorContext(gameId);
   if (!canManage) return;

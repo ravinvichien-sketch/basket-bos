@@ -17,10 +17,10 @@ export default async function LeaderboardPage({
 }: {
   searchParams: Promise<{ group?: string }>;
 }) {
-  const { supabase, user } = await getAdminContext();
+  const { supabase, user, isAdmin } = await getAdminContext();
   const { group: groupParam } = await searchParams;
 
-  const [{ data: profiles }, { data: seasons }, { data: groups }, { data: gm }] =
+  const [{ data: profiles }, { data: seasons }, { data: groups }, { data: gm }, { data: myMemberships }] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -33,9 +33,16 @@ export default async function LeaderboardPage({
         .is("deleted_at", null)
         .order("name"),
       supabase.from("group_members").select("group_id, profile_id"),
+      supabase
+        .from("group_members")
+        .select("group_id")
+        .eq("profile_id", user.id),
     ]);
 
-  const groupList = (groups ?? []) as { id: string; name: string }[];
+  const myGroupIds = new Set((myMemberships ?? []).map((m) => m.group_id));
+  const groupList = (groups ?? []).filter(
+    (g) => isAdmin || myGroupIds.has(g.id)
+  ) as { id: string; name: string }[];
   const activeGroup = groupList.find((g) => g.id === groupParam) ?? null;
   // profileIds ที่อยู่ในก๊วนที่เลือก
   const memberIds = activeGroup

@@ -13,18 +13,37 @@ export default async function GroupsPage() {
     .single();
   const isOnboarded = profile?.onboarded === true;
 
-  const [{ data: groups }, { data: members }] = await Promise.all([
+  const [{ data: groups }, { data: myMemberships }] = await Promise.all([
     supabase
       .from("groups")
       .select("id, name")
       .is("deleted_at", null)
       .order("created_at"),
-    supabase.from("group_members").select("group_id, profile_id"),
+    supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("profile_id", user.id),
   ]);
 
-  const groupList = groups ?? [];
-  const countOf = (gid: string) =>
-    (members ?? []).filter((m) => m.group_id === gid).length;
+  const myGroupIds = new Set((myMemberships ?? []).map((m) => m.group_id));
+  const groupList = isAdmin
+    ? (groups ?? [])
+    : (groups ?? []).filter((g) => myGroupIds.has(g.id));
+
+  // Member counts — only for visible groups
+  const memberCounts = new Map<string, number>();
+  if (groupList.length > 0) {
+    const { data: memberRows } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .in("group_id", groupList.map((g) => g.id));
+    for (const m of memberRows ?? []) {
+      memberCounts.set(
+        m.group_id as string,
+        (memberCounts.get(m.group_id as string) ?? 0) + 1
+      );
+    }
+  }
 
   return (
     <main className="px-5 py-8 space-y-5">
@@ -58,7 +77,9 @@ export default async function GroupsPage() {
 
       {groupList.length === 0 ? (
         <Card className="py-10 text-center text-sm text-ink-faint">
-          ยังไม่มีก๊วน{isOnboarded ? " — สร้างก๊วนแรกด้านบน" : ""}
+          {isAdmin
+            ? "ยังไม่มีก๊วนในระบบ"
+            : "คุณยังไม่ได้เป็นสมาชิกก๊วนไหน — ให้แอดมินก๊วนเพิ่มคุณเข้า LINE Group หรือสร้างก๊วนใหม่เลย"}
         </Card>
       ) : (
         <div className="space-y-3">
@@ -68,7 +89,7 @@ export default async function GroupsPage() {
                 <div>
                   <p className="font-bold">{g.name}</p>
                   <p className="text-xs text-ink-faint">
-                    {countOf(g.id)} สมาชิก
+                    {memberCounts.get(g.id) ?? 0} สมาชิก
                   </p>
                 </div>
                 <span className="text-ink-faint">›</span>

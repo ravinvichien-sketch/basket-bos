@@ -19,20 +19,41 @@ export default async function GamesPage() {
     canCreate = (count ?? 0) > 0;
   }
 
+  // ผู้เล่นดู Session ได้เฉพาะก๊วนที่ตัวเองเป็นสมาชิก (super admin เห็นทั้งหมด)
+  let groupFilter: string[] | null = null;
+  if (!isAdmin) {
+    const { data: myGrp } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("profile_id", user.id);
+    groupFilter = (myGrp ?? []).map((m) => m.group_id);
+  }
+
+  // ถ้าไม่ใช่แอดมิน และไม่ได้เป็นสมาชิกก๊วนไหน → ว่างเปล่า
+  const showUpcoming = groupFilter !== null && groupFilter.length === 0
+    ? { data: [] as any[] }
+    : supabase
+        .from("games")
+        .select("*")
+        .in("group_id", groupFilter ?? [])
+        .gte("ends_at", nowIso)
+        .neq("status", "cancelled")
+        .order("starts_at", { ascending: true });
+
+  const showPast = groupFilter !== null && groupFilter.length === 0
+    ? { data: [] as any[] }
+    : supabase
+        .from("games")
+        .select("*")
+        .lt("ends_at", nowIso)
+        .neq("status", "cancelled")
+        .in("group_id", groupFilter ?? [])
+        .order("starts_at", { ascending: false })
+        .limit(10);
+
   const [{ data: upcoming }, { data: past }] = await Promise.all([
-    supabase
-      .from("games")
-      .select("*")
-      .gte("ends_at", nowIso)
-      .neq("status", "cancelled")
-      .order("starts_at", { ascending: true }),
-    supabase
-      .from("games")
-      .select("*")
-      .lt("ends_at", nowIso)
-      .neq("status", "cancelled")
-      .order("starts_at", { ascending: false })
-      .limit(10),
+    showUpcoming,
+    showPast,
   ]);
 
   const allIds = [...(upcoming ?? []), ...(past ?? [])].map((g) => g.id);

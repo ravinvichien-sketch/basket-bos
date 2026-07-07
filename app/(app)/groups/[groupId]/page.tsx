@@ -61,8 +61,11 @@ export default async function GroupDetailPage({
   const iAmGroupAdmin = rows.some(
     (r) => r.profile_id === user.id && r.role === "admin"
   );
-  const canManage = isAdmin || iAmGroupAdmin;
   const iAmMember = rows.some((r) => r.profile_id === user.id);
+  const canManage = isAdmin || iAmGroupAdmin;
+
+  // ผู้เล่นที่ไม่มีสิทธิ์เข้าถึงก๊วน → 404
+  if (!isAdmin && !iAmMember) notFound();
 
   const members: GroupMemberView[] = rows
     .map((r) => ({

@@ -185,14 +185,79 @@ export async function setActingAdmin(
 }
 
 export async function deleteGame(gameId: string) {
-  const { supabase } = await getAdminContext();
-  // สิทธิ์ถูกบังคับที่ RPC (แอดมินเต็มระบบ หรือ แอดมินของก๊วนนั้น) — soft delete
+  const { supabase, isAdmin } = await getAdminContext();
+  if (!isAdmin) throw new Error("เฉพาะ Super Admin เท่านั้นที่ลบ Session ได้");
+
   const { error } = await supabase.rpc("delete_game_session", {
     p_game_id: gameId,
   });
-  if (error) return;
+  if (error) throw new Error("ลบไม่สำเร็จ: " + error.message);
 
   revalidatePath("/games");
   revalidatePath("/groups");
   redirect("/games");
+}
+
+// ── Stat Keepers ──
+
+async function canManageStatKeepers(supabase: any, gameId: string, userId: string): Promise<boolean> {
+  const { data: game } = await supabase
+    .from("games")
+    .select("group_id, acting_admin_id")
+    .eq("id", gameId)
+    .single();
+  if (!game) return false;
+  if (game.acting_admin_id === userId) return true;
+  const { data: gm } = await supabase
+    .from("group_members")
+    .select("role")
+    .eq("group_id", game.group_id)
+    .eq("profile_id", userId)
+    .single();
+  return gm?.role === "admin";
+}
+
+export async function addStatKeeper(
+  gameId: string,
+  profileId: string
+): Promise<ActionState> {
+  const { supabase, user } = await getAdminContext();
+  if (!(await canManageStatKeepers(supabase, gameId, user.id))) {
+    return { error: "คุณไม่มีสิทธิ์จัดการผู้ช่วยจดสถิติ" };
+  }
+
+  const { error } = await supabase.from("game_stat_keepers").insert({
+    game_id: gameId,
+    profile_id: profileId,
+    added_by: user.id,
+  });
+  if (error?.message?.includes("duplicate key")) {
+    return { error: "คนนี้เป็นผู้ช่วยอยู่แล้ว" };
+  }
+  if (error) return { error: "เพิ่มไม่สำเร็จ" };
+
+  revalidatePath(`/games/${gameId}`);
+  revalidatePath(`/games/${gameId}/live`);
+  return {};
+}
+
+export async function removeStatKeeper(
+  gameId: string,
+  profileId: string
+): Promise<ActionState> {
+  const { supabase, user } = await getAdminContext();
+  if (!(await canManageStatKeepers(supabase, gameId, user.id))) {
+    return { error: "คุณไม่มีสิทธิ์จัดการผู้ช่วยจดสถิติ" };
+  }
+
+  const { error } = await supabase
+    .from("game_stat_keepers")
+    .delete()
+    .eq("game_id", gameId)
+    .eq("profile_id", profileId);
+  if (error) return { error: "เอาออกไม่สำเร็จ" };
+
+  revalidatePath(`/games/${gameId}`);
+  revalidatePath(`/games/${gameId}/live`);
+  return {};
 }

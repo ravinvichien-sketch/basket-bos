@@ -13,12 +13,17 @@ export default async function LiveMatchPage({
   params: Promise<{ gameId: string }>;
 }) {
   const { gameId } = await params;
-  const { supabase } = await getAdminContext();
+  const { supabase, user } = await getAdminContext();
 
-  const [{ data: game }, { data: teamsData }, { data: existingMatches }] = await Promise.all([
+  const [
+    { data: game },
+    { data: teamsData },
+    { data: existingMatches },
+    { data: statKeepers },
+  ] = await Promise.all([
     supabase
       .from("games")
-      .select("id, title, game_duration_minutes, target_score")
+      .select("id, title, group_id, game_duration_minutes, target_score")
       .eq("id", gameId)
       .single(),
     supabase
@@ -33,8 +38,31 @@ export default async function LiveMatchPage({
       .select("id, status")
       .eq("game_id", gameId)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("game_stat_keepers")
+      .select("profile_id")
+      .eq("game_id", gameId),
   ]);
   if (!game) notFound();
+
+  // Determine user role
+  let userRole: "admin" | "statKeeper" | "viewer" = "viewer";
+  const keeperIds = new Set((statKeepers ?? []).map((k) => k.profile_id));
+  if (keeperIds.has(user.id)) {
+    userRole = "statKeeper";
+  }
+  // Group admins override stat keepers
+  if (game.group_id) {
+    const { data: gm } = await supabase
+      .from("group_members")
+      .select("role")
+      .eq("group_id", game.group_id)
+      .eq("profile_id", user.id)
+      .maybeSingle();
+    if (gm?.role === "admin") {
+      userRole = "admin";
+    }
+  }
 
   const teams: LiveTeam[] = (teamsData ?? []).map((t) => ({
     id: t.id,
@@ -71,6 +99,8 @@ export default async function LiveMatchPage({
           gameDurationMinutes={duration}
           targetScore={(game.target_score as number) ?? null}
           existingMatches={(existingMatches ?? []) as { id: string; status: string }[]}
+          userId={user.id}
+          userRole={userRole}
         />
       ) : (
         <Card className="py-12 text-center text-sm text-ink-faint space-y-3">

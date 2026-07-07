@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition, useCallback } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   startMatchGame,
   toggleMatchTimer,
   endMatchGame,
+  recordMatchEvent,
 } from "../actions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -26,22 +27,12 @@ export interface LiveTeam {
   members: LivePlayer[];
 }
 
-interface Delta {
-  fgm: number; fga: number; tpm: number; tpa: number;
-  ftm: number; fta: number;
-  assists: number; reb_off: number; reb_def: number;
-  steals: number; blocks: number; turnovers: number; fouls: number;
-}
-
-const EMPTY: Delta = {
-  fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0,
-  assists: 0, reb_off: 0, reb_def: 0,
-  steals: 0, blocks: 0, turnovers: 0, fouls: 0,
-};
-
 type EventKey =
   | "make2" | "make3" | "makeFt" | "miss"
   | "ast" | "reb" | "stl" | "blk" | "tov";
+
+type GameState = "idle" | "playing" | "finished";
+type UserRole = "admin" | "statKeeper" | "viewer";
 
 const POINT_MODES: { key: EventKey; label: string }[] = [
   { key: "make2", label: "+2 แต้ม" },
@@ -50,33 +41,13 @@ const POINT_MODES: { key: EventKey; label: string }[] = [
   { key: "miss", label: "ยิงพลาด" },
 ];
 
-const STAT_CHIPS: { key: EventKey; label: string; field: keyof Delta }[] = [
-  { key: "reb", label: "รีบ", field: "reb_def" },
-  { key: "ast", label: "แอส", field: "assists" },
-  { key: "stl", label: "สตีล", field: "steals" },
-  { key: "blk", label: "บล็อก", field: "blocks" },
-  { key: "tov", label: "เสีย", field: "turnovers" },
+const STAT_CHIPS: { key: EventKey; label: string }[] = [
+  { key: "reb", label: "รีบ" },
+  { key: "ast", label: "แอส" },
+  { key: "stl", label: "สตีล" },
+  { key: "blk", label: "บล็อก" },
+  { key: "tov", label: "เสีย" },
 ];
-
-function apply(d: Delta, ev: EventKey): Delta {
-  const s = { ...d };
-  switch (ev) {
-    case "make2": s.fgm++; s.fga++; break;
-    case "make3": s.fgm++; s.fga++; s.tpm++; s.tpa++; break;
-    case "makeFt": s.ftm++; s.fta++; break;
-    case "miss": s.fga++; break;
-    case "ast": s.assists++; break;
-    case "reb": s.reb_def++; break;
-    case "stl": s.steals++; break;
-    case "blk": s.blocks++; break;
-    case "tov": s.turnovers++; break;
-  }
-  return s;
-}
-
-const pointsOf = (d: Delta) => 2 * d.fgm + d.tpm + d.ftm;
-
-type GameState = "idle" | "playing" | "finished";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -90,12 +61,16 @@ export function LiveMatch({
   gameDurationMinutes,
   targetScore,
   existingMatches,
+  userId,
+  userRole,
 }: {
   gameId: string;
   teams: LiveTeam[];
   gameDurationMinutes: number;
   targetScore: number | null;
   existingMatches: { id: string; status: string }[];
+  userId: string;
+  userRole: UserRole;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -107,26 +82,112 @@ export function LiveMatch({
   const [timerSeconds, setTimerSeconds] = useState(gameDurationMinutes * 60);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerStartedAt, setTimerStartedAt] = useState<string | null>(null);
-  const [deltas, setDeltas] = useState<Record<string, Delta>>({});
   const [mode, setMode] = useState<EventKey>("make2");
-  const [history, setHistory] = useState<Record<string, Delta>[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [gameNumber] = useState(existingMatches.filter(m => m.status === "finished").length + 1);
+  const [gameNumber] = useState(
+    existingMatches.filter((m) => m.status === "finished").length + 1
+  );
+  const [dbStats, setDbStats] = useState<
+    Record<string, { points: number; [key: string]: number }>
+  >({});
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const subRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const teamA = teams.find((t) => t.id === teamAId);
   const teamB = teams.find((t) => t.id === teamBId);
   const sameTeam = teamAId === teamBId;
 
-  const deltaOf = (id: string) => deltas[id] ?? EMPTY;
-  const scoreOf = (team?: LiveTeam) =>
-    team ? team.members.reduce((s, m) => s + pointsOf(deltaOf(m.profileId)), 0) : 0;
-  const scoreA = scoreOf(teamA);
-  const scoreB = scoreOf(teamB);
+  const canControl = userRole === "admin";
+  const canRecord = userRole === "admin" || userRole === "statKeeper";
+
+  // Score from DB stats + our local contribution
+  const scoreA = teamA
+    ? teamA.members.reduce(
+        (s, m) => s + (dbStats[m.profileId]?.points ?? 0),
+        0
+      )
+    : 0;
+  const scoreB = teamB
+    ? teamB.members.reduce(
+        (s, m) => s + (dbStats[m.profileId]?.points ?? 0),
+        0
+      )
+    : 0;
+
+  // ── Load initial DB stats for current match ──
+  useEffect(() => {
+    if (!currentMatchId) {
+      setDbStats({});
+      return;
+    }
+    const load = async () => {
+      const { data } = await supabase
+        .from("player_game_stats")
+        .select("profile_id, points, assists, reb_def, steals, blocks, turnovers, fouls")
+        .eq("match_id", currentMatchId);
+      if (data) {
+        const m: Record<string, { points: number; [k: string]: number }> = {};
+        for (const r of data) {
+          m[r.profile_id] = {
+            points: r.points,
+            assists: r.assists,
+            reb_def: r.reb_def,
+            steals: r.steals,
+            blocks: r.blocks,
+            turnovers: r.turnovers,
+            fouls: r.fouls,
+          };
+        }
+        setDbStats(m);
+      }
+    };
+    load();
+  }, [currentMatchId, supabase]);
+
+  // ── Realtime: listen for stat changes for this match ──
+  useEffect(() => {
+    if (!currentMatchId) return;
+    const channel = supabase
+      .channel(`match-stats-${currentMatchId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "player_game_stats",
+          filter: `match_id=eq.${currentMatchId}`,
+        },
+        () => {
+          supabase
+            .from("player_game_stats")
+            .select("profile_id, points, assists, reb_def, steals, blocks, turnovers, fouls")
+            .eq("match_id", currentMatchId)
+            .then(({ data }) => {
+              if (data) {
+                const m: Record<string, { points: number; [k: string]: number }> = {};
+                for (const r of data) {
+                  m[r.profile_id] = {
+                    points: r.points,
+                    assists: r.assists,
+                    reb_def: r.reb_def,
+                    steals: r.steals,
+                    blocks: r.blocks,
+                    turnovers: r.turnovers,
+                    fouls: r.fouls,
+                  };
+                }
+                setDbStats(m);
+              }
+            });
+        }
+      )
+      .subscribe();
+    subRef.current = channel;
+    return () => { channel.unsubscribe(); };
+  }, [currentMatchId, supabase]);
 
   // ── Client-side timer tick ──
   useEffect(() => {
@@ -151,45 +212,52 @@ export function LiveMatch({
 
   // ── Realtime subscription for timer state ──
   useEffect(() => {
-    if (currentMatchId) {
-      const channel = supabase
-        .channel(`match-${currentMatchId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "matches",
-            filter: `id=eq.${currentMatchId}`,
-          },
-          (payload: { new: { timer_running: boolean; timer_seconds: number; timer_started_at: string | null; status: string } }) => {
-            const n = payload.new;
-            setTimerRunning(n.timer_running);
-            if (n.timer_running && n.timer_started_at) {
-              setTimerStartedAt(n.timer_started_at);
-              setTimerSeconds(n.timer_seconds);
-            } else {
-              setTimerSeconds(n.timer_seconds);
-              setTimerStartedAt(null);
-            }
-            if (n.status === "finished") {
-              setGameState("finished");
-              setTimerRunning(false);
-            }
+    if (!currentMatchId) return;
+    const channel = supabase
+      .channel(`match-timer-${currentMatchId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "matches",
+          filter: `id=eq.${currentMatchId}`,
+        },
+        (payload: {
+          new: {
+            timer_running: boolean;
+            timer_seconds: number;
+            timer_started_at: string | null;
+            status: string;
+          };
+        }) => {
+          const n = payload.new;
+          setTimerRunning(n.timer_running);
+          if (n.timer_running && n.timer_started_at) {
+            setTimerStartedAt(n.timer_started_at);
+            setTimerSeconds(n.timer_seconds);
+          } else {
+            setTimerSeconds(n.timer_seconds);
+            setTimerStartedAt(null);
           }
-        )
-        .subscribe();
-
-      subscriptionRef.current = channel;
-      return () => {
-        channel.unsubscribe();
-      };
-    }
+          if (n.status === "finished") {
+            setGameState("finished");
+            setTimerRunning(false);
+          }
+        }
+      )
+      .subscribe();
+    return () => { channel.unsubscribe(); };
   }, [currentMatchId, supabase]);
 
   // ── Auto-stop on target score ──
   useEffect(() => {
-    if (targetScore && gameState === "playing" && (scoreA >= targetScore || scoreB >= targetScore)) {
+    if (
+      targetScore &&
+      gameState === "playing" &&
+      canRecord &&
+      (scoreA >= targetScore || scoreB >= targetScore)
+    ) {
       setTimerRunning(false);
       setGameState("finished");
       setMessage(`🎯 ถึง ${targetScore} แต้ม! เกมส์จบ`);
@@ -199,30 +267,25 @@ export function LiveMatch({
         });
       }
     }
-  }, [scoreA, scoreB, targetScore, gameState, currentMatchId, timerSeconds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scoreA, scoreB]);
 
   function changeTeams(next: (v: string) => void, value: string) {
     if (gameState === "playing") return;
     next(value);
-    setDeltas({});
-    setHistory([]);
     setMessage(null);
+    setDbStats({});
   }
 
-  function record(playerId: string, ev: EventKey) {
-    if (gameState !== "playing") return;
-    setMessage(null);
-    setHistory((h) => [...h.slice(-60), deltas]);
-    setDeltas((d) => ({ ...d, [playerId]: apply(deltaOf(playerId), ev) }));
+  function handleRecord(playerId: string, ev: EventKey) {
+    if (!canRecord || !currentMatchId) return;
     setFlash(playerId + ev);
     setTimeout(() => setFlash(null), 220);
-  }
-
-  function undo() {
-    const prev = history[history.length - 1];
-    if (!prev) return;
-    setDeltas(prev);
-    setHistory((h) => h.slice(0, -1));
+    startTransition(async () => {
+      const res = await recordMatchEvent(currentMatchId, gameId, playerId, ev);
+      if (res.error) setMessage(res.error);
+      // DB stats will update via Realtime subscription
+    });
   }
 
   function handleStartGame() {
@@ -241,8 +304,7 @@ export function LiveMatch({
       setTimerRunning(true);
       setTimerStartedAt(new Date().toISOString());
       setTimerSeconds(gameDurationMinutes * 60);
-      setDeltas({});
-      setHistory([]);
+      setDbStats({});
       setMessage(null);
     });
   }
@@ -264,14 +326,8 @@ export function LiveMatch({
 
   function handleEndGame() {
     if (!currentMatchId || !teamA || !teamB) return;
-    const ids = [...teamA.members, ...teamB.members].map((m) => m.profileId);
-    const lines = ids
-      .map((id) => ({ profile_id: id, ...deltaOf(id) }))
-      .filter((l) =>
-        Object.entries(l).some(([k, v]) => k !== "profile_id" && Number(v) > 0)
-      );
-
     startTransition(async () => {
+      // For multi-recorder mode, don't batch save deltas — stats are already in DB
       const res = await endMatchGame(
         currentMatchId,
         gameId,
@@ -280,7 +336,7 @@ export function LiveMatch({
           team_b: teamBId,
           score_a: scoreA,
           score_b: scoreB,
-          lines,
+          lines: [], // Stats already recorded via recordMatchEvent
         })
       );
       if (res.error) {
@@ -289,7 +345,7 @@ export function LiveMatch({
       }
       setGameState("finished");
       setTimerRunning(false);
-      setMessage(`บันทึกเกมส์ ${scoreA}-${scoreB} แล้ว ✓`);
+      setMessage(`จบเกมส์ ${scoreA}-${scoreB} ✓`);
       router.refresh();
     });
   }
@@ -300,14 +356,19 @@ export function LiveMatch({
     setTimerRunning(false);
     setTimerStartedAt(null);
     setTimerSeconds(gameDurationMinutes * 60);
-    setDeltas({});
-    setHistory([]);
+    setDbStats({});
     setMessage(null);
   }
 
   function playerCard(m: LivePlayer, team: LiveTeam) {
-    const d = deltaOf(m.profileId);
-    const pts = pointsOf(d);
+    const stats = dbStats[m.profileId];
+    const pts = stats?.points ?? 0;
+    const ast = stats?.assists ?? 0;
+    const reb = stats?.reb_def ?? 0;
+    const stl = stats?.steals ?? 0;
+    const blk = stats?.blocks ?? 0;
+    const tov = stats?.turnovers ?? 0;
+
     return (
       <div
         key={m.profileId}
@@ -321,15 +382,26 @@ export function LiveMatch({
       >
         <button
           type="button"
-          onClick={() => record(m.profileId, mode)}
-          className="flex w-full items-center gap-2 text-left active:scale-[0.98] transition"
+          onClick={() => handleRecord(m.profileId, mode)}
+          disabled={!canRecord || gameState !== "playing"}
+          className="flex w-full items-center gap-2 text-left active:scale-[0.98] transition disabled:opacity-40"
         >
           {m.avatarUrl ? (
-            <Image src={m.avatarUrl} alt="" width={26} height={26} className="rounded-full shrink-0" />
+            <Image
+              src={m.avatarUrl}
+              alt=""
+              width={26}
+              height={26}
+              className="rounded-full shrink-0"
+            />
           ) : (
-            <span className="h-[26px] w-[26px] shrink-0 rounded-full bg-surface-overlay flex items-center justify-center text-[11px]">🏀</span>
+            <span className="h-[26px] w-[26px] shrink-0 rounded-full bg-surface-overlay flex items-center justify-center text-[11px]">
+              🏀
+            </span>
           )}
-          <span className="min-w-0 flex-1 truncate text-xs font-semibold">{m.nickname}</span>
+          <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+            {m.nickname}
+          </span>
           <span
             className="font-display text-base font-bold tabular-nums"
             style={{ color: team.color }}
@@ -339,21 +411,33 @@ export function LiveMatch({
         </button>
         <div className="mt-1.5 flex gap-1">
           {STAT_CHIPS.map((c) => {
-            const n = d[c.field];
+            const val =
+              c.key === "reb"
+                ? reb
+                : c.key === "ast"
+                  ? ast
+                  : c.key === "stl"
+                    ? stl
+                    : c.key === "blk"
+                      ? blk
+                      : tov;
             return (
               <button
                 key={c.key}
                 type="button"
-                onClick={() => record(m.profileId, c.key)}
+                onClick={() => handleRecord(m.profileId, c.key as EventKey)}
+                disabled={!canRecord || gameState !== "playing"}
                 className={cn(
-                  "flex-1 rounded-md border py-1 text-center transition active:scale-95",
-                  n > 0
+                  "flex-1 rounded-md border py-1 text-center transition active:scale-95 disabled:opacity-40",
+                  val > 0
                     ? "border-court/40 bg-court/10 text-court"
                     : "border-white/10 bg-surface-overlay text-ink-dim"
                 )}
               >
                 <span className="block text-[9px] leading-none">{c.label}</span>
-                <span className="block text-[11px] font-bold tabular-nums leading-tight">{n}</span>
+                <span className="block text-[11px] font-bold tabular-nums leading-tight">
+                  {val}
+                </span>
               </button>
             );
           })}
@@ -364,11 +448,9 @@ export function LiveMatch({
 
   return (
     <div className="space-y-4">
-      {/* Header: Game number */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">
-          {gameState === "idle" ? `เกมส์ที่ ${gameNumber}` : `เกมส์ที่ ${gameNumber}`}
-        </h2>
+        <h2 className="text-lg font-bold">เกมส์ที่ {gameNumber}</h2>
         <Link
           href={`/games/${gameId}/summary`}
           className="text-xs text-ink-faint hover:text-court transition"
@@ -386,7 +468,9 @@ export function LiveMatch({
           className="h-11 flex-1 rounded-xl bg-surface-overlay border border-white/10 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-court disabled:opacity-50"
         >
           {teams.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
           ))}
         </select>
         <span className="text-xs text-ink-faint">vs</span>
@@ -397,7 +481,9 @@ export function LiveMatch({
           className="h-11 flex-1 rounded-xl bg-surface-overlay border border-white/10 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-court disabled:opacity-50"
         >
           {teams.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
           ))}
         </select>
       </div>
@@ -415,18 +501,24 @@ export function LiveMatch({
           <div
             className={cn(
               "font-display text-5xl font-bold tabular-nums",
-              timerSeconds <= 30 && gameState === "playing" ? "text-red-400" : "text-ink"
+              timerSeconds <= 30 && gameState === "playing"
+                ? "text-red-400"
+                : "text-ink"
             )}
           >
             {formatTime(timerSeconds)}
           </div>
           <div className="flex items-center justify-center gap-2 mt-1">
-            {gameState === "idle" && (
-              <Button onClick={handleStartGame} disabled={isPending || sameTeam || !teamAId || !teamBId} size="md">
+            {gameState === "idle" && canControl && (
+              <Button
+                onClick={handleStartGame}
+                disabled={isPending || sameTeam || !teamAId || !teamBId}
+                size="md"
+              >
                 {isPending ? "..." : "▶ เริ่มเกมส์"}
               </Button>
             )}
-            {gameState === "playing" && (
+            {gameState === "playing" && canControl && (
               <>
                 <button
                   onClick={handlePauseResume}
@@ -435,16 +527,28 @@ export function LiveMatch({
                 >
                   {timerRunning ? "⏸" : "▶"}
                 </button>
-                <Button onClick={handleEndGame} disabled={isPending} size="md" variant="danger">
+                <Button
+                  onClick={handleEndGame}
+                  disabled={isPending}
+                  size="md"
+                  variant="danger"
+                >
                   {isPending ? "..." : "⏹ จบเกมส์"}
                 </Button>
               </>
             )}
+            {gameState === "playing" && !canControl && (
+              <span className="rounded-xl bg-amber-500/10 text-amber-400 px-4 py-2 text-xs">
+                รอแอดมินจบเกมส์
+              </span>
+            )}
             {gameState === "finished" && (
               <div className="flex gap-2">
-                <Button onClick={handleNewGame} size="md">
-                  ▶ เริ่มเกมส์ถัดไป
-                </Button>
+                {canControl && (
+                  <Button onClick={handleNewGame} size="md">
+                    ▶ เริ่มเกมส์ถัดไป
+                  </Button>
+                )}
                 <Link
                   href={`/games/${gameId}/summary`}
                   className="inline-flex h-10 items-center rounded-xl bg-surface-overlay px-4 text-sm font-semibold hover:bg-surface-overlay/70 transition"
@@ -464,24 +568,43 @@ export function LiveMatch({
         {/* Scoreboard */}
         <div className="flex items-center justify-center gap-6 pt-2 border-t border-white/5">
           <div className="flex-1 text-center">
-            <p className="text-xs font-bold truncate" style={{ color: teamA?.color }}>
+            <p
+              className="text-xs font-bold truncate"
+              style={{ color: teamA?.color }}
+            >
               {teamA?.name ?? "-"}
             </p>
-            <p className="font-display text-5xl font-bold tabular-nums leading-tight" style={{ color: teamA?.color }}>
+            <p
+              className="font-display text-5xl font-bold tabular-nums leading-tight"
+              style={{ color: teamA?.color }}
+            >
               {scoreA}
             </p>
           </div>
           <span className="text-ink-faint text-lg">–</span>
           <div className="flex-1 text-center">
-            <p className="text-xs font-bold truncate" style={{ color: teamB?.color }}>
+            <p
+              className="text-xs font-bold truncate"
+              style={{ color: teamB?.color }}
+            >
               {teamB?.name ?? "-"}
             </p>
-            <p className="font-display text-5xl font-bold tabular-nums leading-tight" style={{ color: teamB?.color }}>
+            <p
+              className="font-display text-5xl font-bold tabular-nums leading-tight"
+              style={{ color: teamB?.color }}
+            >
               {scoreB}
             </p>
           </div>
         </div>
       </div>
+
+      {/* Role indicator */}
+      {!canControl && canRecord && (
+        <p className="text-center text-[11px] text-ink-faint">
+          คุณเป็นผู้ช่วยจดสถิติ — กดที่ผู้เล่นเพื่อบันทึกเหตุการณ์
+        </p>
+      )}
 
       {/* Point modes */}
       <div className="rounded-xl2 bg-surface-raised border border-white/5 p-3 space-y-2">
@@ -504,11 +627,13 @@ export function LiveMatch({
           ))}
         </div>
         <p className="text-center text-[11px] text-ink-faint">
-          เลือกแต้มด้านบน แล้ว<span className="text-court font-semibold">แตะที่ผู้เล่น</span>ที่ทำ · สถิติอื่นกดปุ่มบนตัวได้เลย
+          {canRecord
+            ? `เลือกแต้มด้านบน แล้วแตะที่ผู้เล่นที่ทำ — สถิติอื่นกดปุ่มบนตัวได้เลย`
+            : `รอแอดมินเริ่มเกมส์เพื่อบันทึกสถิติ`}
         </p>
       </div>
 
-      {/* Players by team (left / right) */}
+      {/* Players by team */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <h3 className="text-xs font-bold text-center" style={{ color: teamA?.color }}>
@@ -516,7 +641,9 @@ export function LiveMatch({
           </h3>
           {teamA?.members.map((m) => playerCard(m, teamA))}
           {teamA?.members.length === 0 && (
-            <p className="py-4 text-center text-xs text-ink-faint">ทีมนี้ยังไม่มีผู้เล่น</p>
+            <p className="py-4 text-center text-xs text-ink-faint">
+              ทีมนี้ยังไม่มีผู้เล่น
+            </p>
           )}
         </div>
         <div className="space-y-2">
@@ -525,21 +652,11 @@ export function LiveMatch({
           </h3>
           {teamB?.members.map((m) => playerCard(m, teamB))}
           {teamB?.members.length === 0 && (
-            <p className="py-4 text-center text-xs text-ink-faint">ทีมนี้ยังไม่มีผู้เล่น</p>
+            <p className="py-4 text-center text-xs text-ink-faint">
+              ทีมนี้ยังไม่มีผู้เล่น
+            </p>
           )}
         </div>
-      </div>
-
-      {/* Undo */}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={undo}
-          disabled={history.length === 0 || gameState !== "playing"}
-          className="h-12 flex-1 rounded-xl bg-surface-overlay text-sm text-ink-dim disabled:opacity-40"
-        >
-          ↩︎ ย้อนกลับ
-        </button>
       </div>
 
       {message && (

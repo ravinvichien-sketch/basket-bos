@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { deleteGame } from "../actions";
 
-/** ปุ่มลบนัด (แอดมิน/แอดมินก๊วน) — ลบได้ทุกสถานะ เพื่อเคลียร์นัดที่ไม่ครบ/ไม่ใช้ */
+/** ปุ่มลบ Session (เฉพาะ Super Admin) — ลบแบบถาวร รวมสถิติทั้งหมด */
 export function DeleteGameButton({ gameId }: { gameId: string }) {
   const [pending, start] = useTransition();
   return (
@@ -11,12 +11,21 @@ export function DeleteGameButton({ gameId }: { gameId: string }) {
       type="button"
       disabled={pending}
       onClick={() => {
-        if (!window.confirm("ลบนัดนี้? (ประวัติสถิติ/จ่ายเงินยังเก็บไว้ แค่ซ่อนออกจากรายการ)")) return;
+        if (
+          !window.confirm(
+            "ลบ Session นี้ถาวร?\\n\\n" +
+              "• สถิติในเกมส์ทั้งหมดจะหายไป\\n" +
+              "• ข้อมูลจ่ายเงินจะหายไป\\n" +
+              "• วีดีโอ/รูปภาพที่อัปโหลดจะหายไป\\n" +
+              "\\nการกระทำนี้ไม่สามารถย้อนกลับได้"
+          )
+        )
+          return;
         start(() => deleteGame(gameId));
       }}
       className="w-full h-11 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold hover:bg-red-500/25 transition disabled:opacity-50"
     >
-      {pending ? "กำลังลบ..." : "🗑 ลบนัดนี้"}
+      {pending ? "กำลังลบ..." : "🗑 ลบ Session ถาวร"}
     </button>
   );
 }
