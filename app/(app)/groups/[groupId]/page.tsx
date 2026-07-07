@@ -5,6 +5,7 @@ import {
   GroupManager,
   type GroupMemberView,
 } from "@/features/groups/components/group-manager";
+import { GroupLocationEditor } from "@/features/groups/components/group-location-editor";
 import { Card, CardTitle } from "@/components/ui/card";
 import { formatThaiDateTime } from "@/lib/format";
 
@@ -22,11 +23,11 @@ export default async function GroupDetailPage({
   const { groupId } = await params;
   const { supabase, user, isAdmin } = await getAdminContext();
 
-  const [{ data: group }, { data: memberRows }, { data: allProfiles }, { data: games }] =
+  const [{ data: group }, { data: memberRows }, { data: allProfiles }, { data: games }, { data: myJoinReq }] =
     await Promise.all([
       supabase
         .from("groups")
-        .select("id, name, deleted_at")
+        .select("id, name, location, lat, lng, deleted_at")
         .eq("id", groupId)
         .single(),
       supabase
@@ -46,6 +47,12 @@ export default async function GroupDetailPage({
         .is("deleted_at", null)
         .order("starts_at", { ascending: false })
         .limit(10),
+      supabase
+        .from("group_join_requests")
+        .select("id, status")
+        .eq("group_id", groupId)
+        .eq("requester_id", user.id)
+        .maybeSingle(),
     ]);
 
   if (!group || group.deleted_at) notFound();
@@ -55,6 +62,7 @@ export default async function GroupDetailPage({
     (r) => r.profile_id === user.id && r.role === "admin"
   );
   const canManage = isAdmin || iAmGroupAdmin;
+  const iAmMember = rows.some((r) => r.profile_id === user.id);
 
   const members: GroupMemberView[] = rows
     .map((r) => ({
@@ -79,6 +87,31 @@ export default async function GroupDetailPage({
         <h1 className="text-2xl font-extrabold mt-1">{group.name}</h1>
         <p className="text-sm text-ink-dim">{members.length} สมาชิก</p>
       </header>
+
+      <Card>
+        <CardTitle>📍 สถานที่</CardTitle>
+        <div className="mt-2">
+          <GroupLocationEditor
+            groupId={groupId}
+            currentLocation={group.location}
+            currentLat={group.lat}
+            currentLng={group.lng}
+            canManage={canManage}
+          />
+        </div>
+      </Card>
+
+      {!iAmMember && (
+        <Card>
+          <CardTitle>📩 ขอเข้าก๊วน</CardTitle>
+          <div className="mt-2">
+            <JoinRequestButton
+              groupId={groupId}
+              existingRequest={myJoinReq as { id: string; status: string } | null}
+            />
+          </div>
+        </Card>
+      )}
 
       <Card>
         <CardTitle>สมาชิก</CardTitle>
@@ -131,3 +164,5 @@ export default async function GroupDetailPage({
     </main>
   );
 }
+
+import { JoinRequestButton } from "./join-request-button";

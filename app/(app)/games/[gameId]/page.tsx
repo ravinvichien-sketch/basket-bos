@@ -80,6 +80,15 @@ function PlayerRow({
       <div className="flex-1 min-w-0">
         <span className="block truncate text-sm">
           {reg.profiles?.nickname ?? "ผู้เล่น"}
+          {reg.status === "confirmed" && (
+            <span className="ml-1.5 text-[10px] text-green-400 font-semibold">✅ ตัวจริง</span>
+          )}
+          {reg.status === "tentative" && (
+            <span className="ml-1.5 text-[10px] text-blue-400 font-semibold">🤷 ไม่แน่นอน</span>
+          )}
+          {reg.status === "waitlisted" && (
+            <span className="ml-1.5 text-[10px] text-amber-400 font-semibold">⏳ สำรอง</span>
+          )}
           {refLabel && (
             <span className="text-ink-faint font-normal"> (เพื่อนของ {refLabel})</span>
           )}
@@ -135,14 +144,14 @@ export default async function GameDetailPage({
       "id, profile_id, status, registered_at, ref_profile_id, ref_approved, note, profiles!profile_id(nickname, avatar_url, is_guest), ref:profiles!ref_profile_id(nickname)"
     )
     .eq("game_id", gameId)
-    .in("status", ["confirmed", "waitlisted"])
+    .in("status", ["confirmed", "waitlisted", "tentative"])
     .order("registered_at", { ascending: true });
   if (full.error) {
     const basic = await supabase
       .from("registrations")
       .select("id, profile_id, status, registered_at, profiles!profile_id(nickname, avatar_url)")
       .eq("game_id", gameId)
-      .in("status", ["confirmed", "waitlisted"])
+      .in("status", ["confirmed", "waitlisted", "tentative"])
       .order("registered_at", { ascending: true });
     regsData = ((basic.data ?? []) as Record<string, unknown>[]).map((r) => ({
       ...r,
@@ -211,18 +220,34 @@ export default async function GameDetailPage({
   let candidates: { id: string; nickname: string }[] = [];
   let members: { id: string; nickname: string }[] = [];
   if (activelyPlaying) {
-    const { data: allProfiles } = await supabase
-      .from("profiles")
-      .select("id, nickname, is_guest")
-      .eq("onboarded", true)
-      .order("nickname");
-    // สมาชิกจริง (ไม่ใช่แขก) — ใช้เป็นตัวเลือก "ผู้ชวน" ในฟอร์มแขก
-    members = (allProfiles ?? [])
-      .filter((p) => !p.is_guest)
-      .map((p) => ({ id: p.id, nickname: p.nickname }));
-    if (canManage) {
+    if (canManage && game.group_id) {
+      const { data: gmRows } = await supabase
+        .from("group_members")
+        .select("profile_id")
+        .eq("group_id", game.group_id);
+      const groupMemberIds = new Set(
+        (gmRows ?? []).map((r) => r.profile_id)
+      );
+      const { data: allProfiles } = await supabase
+        .from("profiles")
+        .select("id, nickname, is_guest")
+        .eq("onboarded", true)
+        .order("nickname");
+      const filtered = (allProfiles ?? []).filter(
+        (p) => !p.is_guest && groupMemberIds.has(p.id)
+      );
+      members = filtered.map((p) => ({ id: p.id, nickname: p.nickname }));
       const activeIds = new Set(regs.map((r) => r.profile_id));
       candidates = members.filter((p) => !activeIds.has(p.id));
+    } else {
+      const { data: allProfiles } = await supabase
+        .from("profiles")
+        .select("id, nickname, is_guest")
+        .eq("onboarded", true)
+        .order("nickname");
+      members = (allProfiles ?? [])
+        .filter((p) => !p.is_guest)
+        .map((p) => ({ id: p.id, nickname: p.nickname }));
     }
   }
 
@@ -248,6 +273,9 @@ export default async function GameDetailPage({
           ],
         ] as [string, string][])),
     ["ปิดรับสมัคร", formatThaiDateTime(game.reg_deadline)],
+    ...(game.notes
+      ? ([["หมายเหตุ", game.notes]] as [string, string][])
+      : []),
   ];
 
   return (

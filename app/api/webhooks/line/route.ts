@@ -55,18 +55,76 @@ async function handleJoin(
     return;
   }
 
-  const { error } = await admin.rpc("register_player", { p_game_id: gameId });
-  if (error) {
-    const msg = error.message?.includes("ALREADY_REGISTERED")
-      ? "✅ คุณลงชื่อไปแล้ว"
-      : error.message?.includes("REG_CLOSED")
-        ? "⛔ ยังไม่เปิดรับสมัคร หรือปิดรับไปแล้ว"
-        : error.message?.includes("FULL")
-          ? "❌ เกมเต็มแล้ว"
-          : "❌ ลงชื่อไม่สำเร็จ กรุณาลองในแอป";
-    await replyLineText(replyToken, msg);
+  const { data: game } = await admin
+    .from("games")
+    .select("id, status, reg_opens_at, reg_deadline, max_players, max_waitlist")
+    .eq("id", gameId)
+    .maybeSingle();
+
+  if (!game || game.status !== "open") {
+    await replyLineText(replyToken, "⛔ ยังไม่เปิดรับสมัคร หรือปิดรับไปแล้ว");
     return;
   }
+
+  const now = new Date();
+  const opensAt = new Date(game.reg_opens_at);
+  const deadline = new Date(game.reg_deadline);
+  if (now < opensAt || now > deadline) {
+    await replyLineText(replyToken, "⛔ ยังไม่เปิดรับสมัคร หรือปิดรับไปแล้ว");
+    return;
+  }
+
+  const { data: existing } = await admin
+    .from("registrations")
+    .select("id, status")
+    .eq("game_id", gameId)
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+
+  if (existing && existing.status !== "cancelled") {
+    await replyLineText(replyToken, "✅ คุณลงชื่อไปแล้ว");
+    return;
+  }
+
+  const { count: confirmedCount } = await admin
+    .from("registrations")
+    .select("*", { count: "exact", head: true })
+    .eq("game_id", gameId)
+    .eq("status", "confirmed");
+
+  const isFull = (confirmedCount ?? 0) >= game.max_players;
+  let newStatus: string;
+
+  if (!isFull) {
+    newStatus = "confirmed";
+  } else {
+    const { count: waitlistCount } = await admin
+      .from("registrations")
+      .select("*", { count: "exact", head: true })
+      .eq("game_id", gameId)
+      .eq("status", "waitlisted");
+    if ((waitlistCount ?? 0) >= (game.max_waitlist ?? 0)) {
+      await replyLineText(replyToken, "❌ เกมเต็มแล้ว");
+      return;
+    }
+    newStatus = "waitlisted";
+  }
+
+  if (existing) {
+    await admin.from("registrations").update({
+      status: newStatus,
+      registered_at: new Date().toISOString(),
+      cancelled_at: null,
+      promoted_at: null,
+    }).eq("id", existing.id);
+  } else {
+    await admin.from("registrations").insert({
+      game_id: gameId,
+      profile_id: profile.id,
+      status: newStatus,
+    });
+  }
+
   await replyWithRoster(admin, replyToken, gameId);
 }
 
@@ -166,13 +224,18 @@ async function handleEvent(
   if (event.type === "message" && event.message?.text) {
     const text = event.message.text.trim();
 
-    // Simple keyword matching — supports Thai + English
-    const isJoin = /^(ลงชื่อ|join)\b/i.test(text);
-    const isRoster = /^(คิว|ดูคิว|roster)\b/i.test(text);
-    const isLeave = /^(ถอน|ถอนตัว|leave)\b/i.test(text);
-    const isStatus = /^(สถานะ|status)\b/i.test(text);
-    const isGames = /^(เกม|games)\b/i.test(text);
-    const isHelp = /^(ช่วยเหลือ|help|สวัสดี)\b/i.test(text);
+    // Simple keyword matching — Thai words without \b, English words with \b
+    const isJoin = /^ลงชื่อ/i.test(text) || /^join\b/i.test(text);
+    const isRoster = /^(คิว|ดูคิว)/i.test(text) || /^roster\b/i.test(text);
+    const isLeave = /^(ถอน|ถอนตัว)/i.test(text) || /^leave\b/i.test(text);
+    const isStatus = /^สถานะ/i.test(text) || /^status\b/i.test(text);
+    const isGames = /^เกม/i.test(text) || /^games\b/i.test(text);
+    const isHelp = /^(ช่วยเหลือ|สวัสดี)/i.test(text) || /^help\b/i.test(text);
+
+    if (!isHelp && !isGames && !isJoin && !isRoster && !isLeave && !isStatus) {
+      await replyHelp(replyToken);
+      return;
+    }
 
     if (isHelp) {
       await replyHelp(replyToken);
@@ -225,6 +288,7 @@ async function handleEvent(
       }
       const { error } = await admin.rpc("cancel_registration", {
         p_game_id: gameId,
+        p_profile_id: profile.id,
       });
       if (error) {
         await replyLineText(replyToken, "❌ ถอนตัวไม่สำเร็จ — คุณอาจยังไม่ได้ลงชื่อ");
@@ -272,7 +336,7 @@ async function handleEvent(
   }
 }
 
-/** LINE Messaging API webhook — welcomes new followers, handles postback from Flex/rich menu and text commands. */
+/** LINE Messaging API webhook — handles follow, join, postback, and text commands. */
 export async function POST(req: NextRequest) {
   const body = await req.text();
 
@@ -375,7 +439,11 @@ async function replyWithRoster(
   gameId: string
 ) {
   const [{ data: game }, { data: regs }] = await Promise.all([
-    admin.from("games").select("title, max_players").eq("id", gameId).single(),
+    admin
+      .from("games")
+      .select("title, starts_at, location, notes, max_players, groups!group_id(name)")
+      .eq("id", gameId)
+      .single(),
     admin
       .from("registrations")
       .select("status, profiles!profile_id(nickname)")
@@ -401,8 +469,20 @@ async function replyWithRoster(
     .filter((r) => r.status === "tentative")
     .map(nick);
 
-  // Build a text roster instead of Flex for simplicity in webhook context
+  const group = game.groups as { name?: string } | null;
+  const dateStr = new Date(game.starts_at).toLocaleDateString("th-TH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   let text = `🏀 ${game.title}\n`;
+  if (group?.name) text += `🎯 ${group.name}\n`;
+  text += `📅 ${dateStr}\n`;
+  text += `📍 ${game.location}\n`;
+  if (game.notes) text += `📝 ${game.notes}\n`;
   text += `👥 ตัวจริง (${confirmed.length}/${game.max_players})\n`;
   text += confirmed.map((n, i) => `${i + 1}. ${n}`).join("\n") || "  -";
   if (tentative.length > 0) {

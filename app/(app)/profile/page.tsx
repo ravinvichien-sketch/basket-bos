@@ -6,6 +6,7 @@ import { getLang } from "@/lib/i18n-server";
 import { t } from "@/lib/i18n";
 import { Card, CardTitle } from "@/components/ui/card";
 import { CardPhotoManager } from "@/features/profile/components/card-photo-manager";
+import { LineIdEditor } from "@/features/profile/components/line-id-editor";
 
 const HAND_LABELS: Record<string, Record<string, string>> = {
   th: { left: "ซ้าย", right: "ขวา", both: "สองมือ" },
@@ -83,6 +84,13 @@ export default async function ProfilePage() {
         <CardTitle>{t(lang, "profile.cardPhoto")}</CardTitle>
         <div className="mt-3">
           <CardPhotoManager currentPhotoUrl={profile.card_photo_url ?? null} />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>LINE ID</CardTitle>
+        <div className="mt-3">
+          <LineIdEditor currentLineId={profile.line_id ?? null} />
         </div>
       </Card>
 

@@ -90,6 +90,7 @@ export function gameListFlex(games: GameBrief[]) {
 export function rosterFlex(
   title: string,
   confirmed: string[],
+  tentative: string[],
   waitlist: string[],
   maxPlayers: number
 ) {
@@ -127,6 +128,26 @@ export function rosterFlex(
           },
         ]),
   ];
+
+  if (tentative.length > 0) {
+    bodyContents.push(
+      { type: "separator", margin: "md" },
+      {
+        type: "text",
+        text: `🤷 ไม่แน่นอน (${tentative.length})`,
+        weight: "bold",
+        size: "sm",
+        margin: "md",
+        color: "#60a5fa",
+      },
+      ...tentative.map((n, i) => ({
+        type: "text",
+        text: `${i + 1}. ${n}`,
+        size: "sm",
+        margin: "xs",
+      }))
+    );
+  }
 
   if (waitlist.length > 0) {
     bodyContents.push(

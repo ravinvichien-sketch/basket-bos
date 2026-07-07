@@ -13,14 +13,14 @@ async function pushRosterToGroup(gameId: string, headline: string) {
     const [{ data: game }, { data: regs }] = await Promise.all([
       supabase
         .from("games")
-        .select("title, max_players")
+        .select("title, max_players, starts_at, location, notes, groups!group_id(name)")
         .eq("id", gameId)
         .single(),
       supabase
         .from("registrations")
         .select("status, profiles!profile_id(nickname)")
         .eq("game_id", gameId)
-        .in("status", ["confirmed", "waitlisted"])
+        .in("status", ["confirmed", "waitlisted", "tentative"])
         .order("registered_at", { ascending: true }),
     ]);
     if (!game) return;
@@ -28,12 +28,28 @@ async function pushRosterToGroup(gameId: string, headline: string) {
     const nick = (r: { profiles: unknown }) =>
       (r.profiles as { nickname?: string } | null)?.nickname ?? "ผู้เล่น";
     const confirmed = (regs ?? []).filter((r) => r.status === "confirmed");
+    const tentative = (regs ?? []).filter((r) => r.status === "tentative");
     const waitlist = (regs ?? []).filter((r) => r.status === "waitlisted");
 
-    let text = `🏀 ${game.title}\n${headline}\n\nตัวจริง (${confirmed.length}/${game.max_players})\n`;
-    text += confirmed.map((r, i) => `${i + 1}. ${nick(r)}`).join("\n");
+    const group = game.groups as { name?: string } | null;
+    const dateStr = new Date(game.starts_at).toLocaleDateString("th-TH", {
+      weekday: "short", month: "short", day: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+
+    let text = `🏀 ${game.title}\n`;
+    text += `${headline}\n`;
+    if (group?.name) text += `🎯 ${group.name}\n`;
+    text += `📅 ${dateStr}\n📍 ${game.location}\n`;
+    if (game.notes) text += `📝 ${game.notes}\n`;
+    text += `\n👥 ตัวจริง (${confirmed.length}/${game.max_players})\n`;
+    text += confirmed.map((r, i) => `${i + 1}. ${nick(r)}`).join("\n") || "  -";
+    if (tentative.length > 0) {
+      text += `\n\n🤷 ไม่แน่นอน (${tentative.length})\n`;
+      text += tentative.map((r, i) => `${i + 1}. ${nick(r)}`).join("\n");
+    }
     if (waitlist.length > 0) {
-      text += `\n\nสำรอง (${waitlist.length})\n`;
+      text += `\n\n⏳ สำรอง (${waitlist.length})\n`;
       text += waitlist.map((r, i) => `${i + 1}. ${nick(r)}`).join("\n");
     }
     await pushToGroup(text);

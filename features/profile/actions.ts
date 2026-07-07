@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { onboardingSchema } from "./schemas";
 
 export interface ActionState {
@@ -105,5 +106,136 @@ export async function setCardPhoto(publicUrl: string): Promise<ActionState> {
   revalidatePath("/profile");
   revalidatePath(`/players/${user.id}`);
   revalidatePath("/dashboard");
+  return {};
+}
+
+// ── Comments ──
+
+export async function addComment(
+  targetId: string,
+  content: string
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบ" };
+
+  const t = content.trim();
+  if (!t || t.length > 500) return { error: "ข้อความ 1–500 ตัวอักษร" };
+
+  const { error } = await supabase.from("profile_comments").insert({
+    target_id: targetId,
+    author_id: user.id,
+    content: t,
+  });
+  if (error) return { error: "ส่งข้อความไม่สำเร็จ" };
+
+  revalidatePath(`/players/${targetId}`);
+  return {};
+}
+
+export async function deleteComment(
+  commentId: string,
+  targetId: string
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบ" };
+
+  const { error } = await supabase
+    .from("profile_comments")
+    .delete()
+    .eq("id", commentId)
+    .eq("author_id", user.id);
+  if (error) return { error: "ลบไม่สำเร็จ" };
+
+  revalidatePath(`/players/${targetId}`);
+  return {};
+}
+
+// ── LINE ID ──
+
+export async function saveLineId(
+  lineId: string
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบ" };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ line_id: lineId || null })
+    .eq("id", user.id);
+  if (error) return { error: "บันทึกไม่สำเร็จ" };
+
+  revalidatePath("/profile");
+  revalidatePath(`/players/${user.id}`);
+  return {};
+}
+
+// ── Dream Team ──
+
+export async function sendDreamTeamRequest(
+  targetId: string
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบ" };
+  if (targetId === user.id) return { error: "ขอตัวเองไม่ได้" };
+
+  const { error } = await supabase.from("dream_team_requests").insert({
+    requester_id: user.id,
+    target_id: targetId,
+  });
+  if (error?.message?.includes("unique")) {
+    return { error: "คุณส่งคำขอไปแล้ว" };
+  }
+  if (error) return { error: "ส่งคำขอไม่สำเร็จ" };
+
+  revalidatePath(`/players/${user.id}`);
+  revalidatePath(`/players/${targetId}`);
+  return {};
+}
+
+export async function cancelDreamTeamRequest(
+  requestId: string,
+  targetId: string
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบ" };
+
+  const { error } = await supabase
+    .from("dream_team_requests")
+    .delete()
+    .eq("id", requestId)
+    .eq("requester_id", user.id);
+  if (error) return { error: "ยกเลิกไม่สำเร็จ" };
+
+  revalidatePath(`/players/${user.id}`);
+  revalidatePath(`/players/${targetId}`);
+  return {};
+}
+
+export async function respondToDreamTeamRequest(
+  requestId: string,
+  accept: boolean,
+  requesterId: string
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบ" };
+
+  const { error } = await supabase
+    .from("dream_team_requests")
+    .update({
+      status: accept ? "accepted" : "rejected",
+      responded_at: new Date().toISOString(),
+    })
+    .eq("id", requestId)
+    .eq("target_id", user.id);
+  if (error) return { error: "ตอบกลับไม่สำเร็จ" };
+
+  revalidatePath(`/players/${user.id}`);
+  revalidatePath(`/players/${requesterId}`);
   return {};
 }
