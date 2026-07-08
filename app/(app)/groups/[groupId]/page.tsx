@@ -26,7 +26,7 @@ export default async function GroupDetailPage({
   const results = await Promise.allSettled([
       supabase
         .from("groups")
-        .select("id, name, location, lat, lng, deleted_at")
+        .select("id, name, deleted_at")
         .eq("id", groupId)
         .single(),
       supabase
@@ -122,9 +122,9 @@ export default async function GroupDetailPage({
         <div className="mt-2">
           <GroupLocationEditor
             groupId={groupId}
-            currentLocation={group.location}
-            currentLat={group.lat}
-            currentLng={group.lng}
+            currentLocation={null}
+            currentLat={null}
+            currentLng={null}
             canManage={canManage}
           />
         </div>
