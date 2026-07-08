@@ -23,7 +23,8 @@ export default async function GroupDetailPage({
   const { groupId } = await params;
   const { supabase, user, isAdmin } = await getAdminContext();
 
-  const results = await Promise.allSettled([
+  const [{ data: group }, { data: memberRows }, { data: allProfiles }, { data: games }, { data: myJoinReq }] =
+    await Promise.all([
       supabase
         .from("groups")
         .select("id, name, deleted_at")
@@ -54,34 +55,7 @@ export default async function GroupDetailPage({
         .maybeSingle(),
     ]);
 
-  const group = results[0].status === "fulfilled" ? results[0].value.data : null;
-  const memberRows = results[1].status === "fulfilled" ? (results[1].value.data ?? []) : [];
-  const allProfiles = results[2].status === "fulfilled" ? (results[2].value.data ?? []) : [];
-  const games = results[3].status === "fulfilled" ? (results[3].value.data ?? []) : [];
-  const myJoinReq = results[4].status === "fulfilled" ? (results[4].value.data ?? null) : null;
-
-  const groupErr = results[0].status === "fulfilled" ? results[0].value.error : results[0].reason;
-  const memberErr = results[1].status === "fulfilled" ? results[1].value.error : results[1].reason;
-
-  if (!group || group.deleted_at) {
-    return (
-      <main className="px-5 py-8 space-y-4">
-        <Link href="/groups" className="text-xs text-ink-faint">← ก๊วนทั้งหมด</Link>
-        <h1 className="text-xl font-bold">ไม่พบก๊วน</h1>
-        {(groupErr || memberErr) && (
-          <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-400 space-y-1">
-            {groupErr && <p>⚠️ groups query: {JSON.stringify(groupErr, null, 2)}</p>}
-            {memberErr && <p>⚠️ members query: {JSON.stringify(memberErr, null, 2)}</p>}
-          </div>
-        )}
-        <p className="text-sm text-ink-faint">
-          groupId: {groupId}<br />
-          userId: {user.id}<br />
-          isAdmin: {String(isAdmin)}
-        </p>
-      </main>
-    );
-  }
+  if (!group || group.deleted_at) notFound();
 
   const rows = (memberRows ?? []) as unknown as MemberRow[];
   const iAmGroupAdmin = rows.some(
