@@ -602,20 +602,39 @@ async function handleEvent(
         return;
       }
 
-      // Find open sessions in this group that the user is registered in
+      // Find open games in this group
       const now = new Date().toISOString();
-      const { data: myRegs } = await admin
-        .from("registrations")
-        .select("game_id, status, games!inner(id, title, starts_at, status, group_id)")
-        .eq("profile_id", profile.id)
-        .eq("games.group_id", group.id)
-        .eq("games.status", "open")
-        .gte("games.ends_at", now)
-        .in("status", ["confirmed", "waitlisted"])
-        .order("games(starts_at)", { ascending: true })
+      const { data: openGames } = await admin
+        .from("games")
+        .select("id, title, starts_at")
+        .eq("group_id", group.id)
+        .eq("status", "open")
+        .gte("ends_at", now)
+        .order("starts_at", { ascending: true })
         .limit(5);
 
-      if (!myRegs || myRegs.length === 0) {
+      if (!openGames || openGames.length === 0) {
+        await replyLineText(
+          replyToken,
+          "❌ ก๊วนนี้ยังไม่มี Session ที่เปิดรับอยู่"
+        );
+        return;
+      }
+
+      // Find which of those games the user is registered in
+      const gameIds = openGames.map((g) => g.id);
+      const { data: userRegs } = await admin
+        .from("registrations")
+        .select("game_id, status")
+        .eq("profile_id", profile.id)
+        .in("game_id", gameIds)
+        .in("status", ["confirmed", "waitlisted"]);
+
+      const registeredGames = (userRegs ?? [])
+        .map((r) => openGames.find((g) => g.id === r.game_id))
+        .filter(Boolean) as OpenGameBrief[];
+
+      if (registeredGames.length === 0) {
         await replyLineText(
           replyToken,
           "❌ คุณยังไม่ได้ลงชื่อใน Session ที่เปิดรับของก๊วนนี้"
@@ -623,11 +642,9 @@ async function handleEvent(
         return;
       }
 
-      if (myRegs.length === 1) {
-        const reg = myRegs[0];
-        const g = reg.games as unknown as { id: string };
+      if (registeredGames.length === 1) {
         const { error } = await admin.rpc("cancel_registration", {
-          p_game_id: g.id,
+          p_game_id: registeredGames[0].id,
           p_profile_id: profile.id,
         });
         if (error) {
@@ -637,14 +654,9 @@ async function handleEvent(
           );
           return;
         }
-        await replyWithRoster(admin, replyToken, g.id);
+        await replyWithRoster(admin, replyToken, registeredGames[0].id);
       } else {
-        // Multiple sessions the user is registered in → show picker
-        const pickGames: OpenGameBrief[] = myRegs.map((r) => {
-          const g = r.games as unknown as OpenGameBrief;
-          return { id: g.id, title: g.title, starts_at: g.starts_at };
-        });
-        await replySessionPicker(replyToken, group.name, pickGames);
+        await replySessionPicker(replyToken, group.name, registeredGames);
       }
       return;
     }
