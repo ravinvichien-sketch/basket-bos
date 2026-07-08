@@ -343,6 +343,7 @@ export async function createDreamTeam(
   if (insError) return { error: "เพิ่มสมาชิกไม่สำเร็จ" };
 
   revalidatePath(`/players/${user.id}`);
+  revalidatePath("/profile");
   return { id: dt.id };
 }
 
@@ -386,6 +387,7 @@ export async function respondToDreamTeamInvite(
   if (error) return { error: "ตอบกลับไม่สำเร็จ" };
 
   revalidatePath(`/players/${user.id}`);
+  revalidatePath("/profile");
   return {};
 }
 
@@ -413,5 +415,6 @@ export async function removeDreamTeamMember(
   if (error) return { error: "เอาออกไม่สำเร็จ" };
 
   revalidatePath(`/players/${user.id}`);
+  revalidatePath("/profile");
   return {};
 }

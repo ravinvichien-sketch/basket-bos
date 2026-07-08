@@ -33,15 +33,20 @@ export function DreamTeamSection({
   const [showCreate, setShowCreate] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const handleCreate = () => {
     if (!teamName.trim()) return;
+    setCreateError(null);
     start(async () => {
       const res = await createDreamTeam(teamName, selectedMembers);
-      if (!res.error) {
+      if (res.error) {
+        setCreateError(res.error);
+      } else {
         setShowCreate(false);
         setTeamName("");
         setSelectedMembers([]);
+        setCreateError(null);
       }
     });
   };
@@ -116,6 +121,9 @@ export function DreamTeamSection({
               ยกเลิก
             </button>
           </div>
+          {createError && (
+            <p className="text-xs text-red-400">{createError}</p>
+          )}
         </div>
       )}
 
