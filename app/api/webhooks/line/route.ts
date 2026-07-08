@@ -239,15 +239,26 @@ async function handleEvent(
     const isLeave = /^(ถอน|ถอนตัว)/i.test(text) || /^leave\b/i.test(text);
     const isStatus = /^สถานะ/i.test(text) || /^status\b/i.test(text);
     const isGames = /^เกม/i.test(text) || /^games\b/i.test(text);
+    const isGroupId = /^(groupid|myid|ไอดีกลุ่ม)$/i.test(text);
     const isHelp = /^(ช่วยเหลือ|สวัสดี)/i.test(text) || /^help\b/i.test(text);
 
-    if (!isHelp && !isGames && !isJoin && !isRoster && !isLeave && !isStatus) {
+    if (!isHelp && !isGames && !isJoin && !isRoster && !isLeave && !isStatus && !isGroupId) {
       await replyHelp(replyToken);
       return;
     }
 
     if (isHelp) {
       await replyHelp(replyToken);
+      return;
+    }
+
+    if (isGroupId) {
+      const groupId = event.source?.groupId;
+      if (!groupId) {
+        await replyLineText(replyToken, "คำสั่งนี้ใช้ได้เฉพาะในแชทกลุ่มเท่านั้น");
+        return;
+      }
+      await replyLineText(replyToken, `LINE Group ID ของคุณคือ:\n${groupId}\n\nคัดลอกไปวางในแอปตอนสร้างก๊วน`);
       return;
     }
 
