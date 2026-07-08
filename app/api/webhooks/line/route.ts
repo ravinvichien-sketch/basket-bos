@@ -64,7 +64,7 @@ async function replySessionPicker(
     contents: {
       type: "carousel",
       contents: games.map((g) => {
-        const dateStr = new Date(g.starts_at).toLocaleDateString("th-TH", {
+        const dateStr = new Date(g.starts_at).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok",
           weekday: "short",
           month: "short",
           day: "numeric",
@@ -824,7 +824,7 @@ async function replyGamesList(
   const briefs = games.map((g) => ({
     id: g.id,
     title: g.title,
-    startsAt: new Date(g.starts_at).toLocaleDateString("th-TH", {
+    startsAt: new Date(g.starts_at).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok",
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -891,7 +891,7 @@ async function replyWithRoster(
     .map(nick);
 
   const group = game.groups as { name?: string } | null;
-  const dateStr = new Date(game.starts_at).toLocaleDateString("th-TH", {
+  const dateStr = new Date(game.starts_at).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok",
     weekday: "short",
     month: "short",
     day: "numeric",

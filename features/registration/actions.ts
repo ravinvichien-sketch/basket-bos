@@ -33,7 +33,7 @@ async function pushRosterToGroup(gameId: string, headline: string) {
 
     const group = game.groups as { name?: string } | null;
     const dateStr = new Date(game.starts_at).toLocaleDateString("th-TH", {
-      weekday: "short", month: "short", day: "numeric",
+      timeZone: "Asia/Bangkok", weekday: "short", month: "short", day: "numeric",
       hour: "2-digit", minute: "2-digit",
     });
 
