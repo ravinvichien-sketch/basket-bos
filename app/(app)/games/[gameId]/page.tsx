@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAdminContext } from "@/features/auth/guards";
+import { tryGetUser } from "@/features/auth/guards";
+import { createClient } from "@/lib/supabase/server";
 import { changeGameStatus } from "@/features/games/actions";
 import { adminRemovePlayer } from "@/features/registration/actions";
 import {
@@ -127,7 +128,10 @@ export default async function GameDetailPage({
   params: Promise<{ gameId: string }>;
 }) {
   const { gameId } = await params;
-  const { supabase, user, isAdmin } = await getAdminContext();
+  const ctx = await tryGetUser();
+  const supabase = ctx ? ctx.supabase : await createClient();
+  const user = ctx?.user ?? null;
+  const isAdmin = ctx?.isAdmin ?? false;
 
   const { data: game } = await supabase
     .from("games")
@@ -135,6 +139,84 @@ export default async function GameDetailPage({
     .eq("id", gameId)
     .single();
   if (!game) notFound();
+
+  // ── Public snapshot (not logged in) ──
+  if (!user) {
+    const group = game.groups as { name?: string } | null;
+    const { data: pubRegs } = await supabase
+      .from("registrations")
+      .select("status, profiles!profile_id(nickname)")
+      .eq("game_id", gameId)
+      .in("status", ["confirmed", "waitlisted", "tentative"])
+      .order("registered_at", { ascending: true });
+
+    const pConfirmed = (pubRegs ?? []).filter((r) => r.status === "confirmed");
+    const pTentative = (pubRegs ?? []).filter((r) => r.status === "tentative");
+    const pWaitlist = (pubRegs ?? []).filter((r) => r.status === "waitlisted");
+
+    return (
+      <main className="min-h-dvh px-5 py-8 space-y-5 max-w-lg mx-auto">
+        <header className="text-center">
+          <h1 className="text-2xl font-extrabold">🏀 {game.title}</h1>
+          {group?.name && <p className="text-sm text-court mt-1">🎯 {group.name}</p>}
+          <p className="text-sm text-ink-dim mt-1">📅 {formatThaiDateTime(game.starts_at)}</p>
+          {game.location && <p className="text-xs text-ink-faint mt-0.5">📍 {game.location}</p>}
+        </header>
+
+        <section className="bg-surface-overlay/50 rounded-xl p-4 space-y-3">
+          <h2 className="text-sm font-semibold">👥 ตัวจริง ({pConfirmed.length}/{game.max_players})</h2>
+          {pConfirmed.length > 0 ? (
+            <ul className="space-y-1.5">
+              {pConfirmed.map((r: unknown, i: number) => {
+                const p = (r as { profiles: { nickname: string } | null }).profiles;
+                return (
+                  <li key={i} className="flex items-center gap-2 text-sm">
+                    <span className="w-5 text-right text-ink-faint tabular-nums">{i + 1}.</span>
+                    <span>{p?.nickname ?? "ผู้เล่น"}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-sm text-ink-faint text-center py-2">ยังไม่มีผู้ลงชื่อ</p>
+          )}
+
+          {pTentative.length > 0 && (
+            <div className="border-t border-white/5 pt-3">
+              <p className="text-sm font-semibold text-blue-400">🤷 ไม่แน่นอน ({pTentative.length})</p>
+              <ul className="mt-1 space-y-1">
+                {pTentative.map((r: unknown, i: number) => (
+                  <li key={i} className="text-sm text-ink-dim">
+                    {(r as { profiles: { nickname: string } | null }).profiles?.nickname ?? "ผู้เล่น"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {pWaitlist.length > 0 && (
+            <div className="border-t border-white/5 pt-3">
+              <p className="text-sm font-semibold text-amber-400">⏳ สำรอง ({pWaitlist.length})</p>
+              <ul className="mt-1 space-y-1">
+                {pWaitlist.map((r: unknown, i: number) => (
+                  <li key={i} className="text-sm text-ink-dim">
+                    {(r as { profiles: { nickname: string } | null }).profiles?.nickname ?? "ผู้เล่น"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+
+        <div className="text-center space-y-3">
+          <p className="text-xs text-ink-faint">ต้องการลงชื่อหรือดูรายละเอียดเพิ่มเติม?</p>
+          <Link href="/login" className="inline-flex h-10 items-center justify-center rounded-xl bg-court px-6 text-sm font-semibold text-white hover:bg-court-dark transition">
+            เข้าสู่ระบบด้วย LINE
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   // ดึงรายชื่อแบบเต็ม (มีข้อมูลผู้ชวน) — ถ้าคอลัมน์ใหม่ยังไม่ถูกสร้าง
   // (ยังไม่ได้รัน migration 010) ให้ถอยไปดึงแบบพื้นฐาน เพื่อให้รายชื่อโชว์ได้เสมอ

@@ -11,6 +11,21 @@ export async function requireUser() {
   return { supabase, user };
 }
 
+/** Like requireUser but returns null instead of redirecting */
+export async function tryGetUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  return { supabase, user, isAdmin: profile?.role === "admin" };
+}
+
 /** Returns supabase + user + isAdmin (แอดมินเต็มระบบ). Server-verified. */
 export async function getAdminContext() {
   const { supabase, user } = await requireUser();

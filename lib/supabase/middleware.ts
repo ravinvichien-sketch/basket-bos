@@ -5,6 +5,8 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 const PUBLIC_PATHS = ["/login", "/auth", "/api/webhooks"];
 
+const GAME_DETAIL_RE = /^\/games\/[0-9a-f-]{36}$/i;
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -36,7 +38,9 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isPublic =
-    pathname === "/" || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+    pathname === "/" ||
+    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    GAME_DETAIL_RE.test(pathname);
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
