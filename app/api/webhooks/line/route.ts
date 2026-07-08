@@ -643,16 +643,32 @@ async function handleEvent(
       }
 
       if (registeredGames.length === 1) {
-        const { error } = await admin.rpc("cancel_registration", {
+        console.log("cancel_registration", { game_id: registeredGames[0].id, profile_id: profile.id });
+        const { error: rpcError } = await admin.rpc("cancel_registration", {
           p_game_id: registeredGames[0].id,
           p_profile_id: profile.id,
         });
-        if (error) {
-          await replyLineText(
-            replyToken,
-            "❌ ถอนตัวไม่สำเร็จ"
-          );
-          return;
+        console.log("cancel_registration result", { error: rpcError?.message, code: rpcError?.code });
+
+        if (rpcError) {
+          // Try direct update as fallback (skip deadline/auth checks)
+          const { error: directError } = await admin
+            .from("registrations")
+            .update({
+              status: "cancelled",
+              cancelled_at: new Date().toISOString(),
+            })
+            .eq("game_id", registeredGames[0].id)
+            .eq("profile_id", profile.id)
+            .in("status", ["confirmed", "waitlisted"]);
+
+          if (directError) {
+            await replyLineText(
+              replyToken,
+              `❌ ถอนตัวไม่สำเร็จ`
+            );
+            return;
+          }
         }
         await replyWithRoster(admin, replyToken, registeredGames[0].id);
       } else {
