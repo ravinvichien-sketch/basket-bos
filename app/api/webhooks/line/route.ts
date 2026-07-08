@@ -144,14 +144,15 @@ async function replySessionPicker(
   }
 }
 
-/** Pick a game from a list — auto if only 1, or match keyword */
+/** Pick a game from a list — null = show picker */
 function pickGame(
   games: OpenGameBrief[],
   keyword?: string
 ): OpenGameBrief | null {
   if (games.length === 0) return null;
   if (games.length === 1) return games[0];
-  if (!keyword || keyword === "latest") return games[0];
+  // Multiple games → only auto-pick if a specific keyword matches
+  if (!keyword || keyword === "latest") return null;
   const lower = keyword.toLowerCase();
   return (
     games.find(
