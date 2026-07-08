@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLang } from "@/lib/i18n-server";
@@ -83,8 +82,10 @@ export default async function ProfilePage() {
     .eq("profile_id", user.id);
   const myGroups: { id: string; name: string; role: string }[] = [];
   for (const g of myGroupRows ?? []) {
-    const grp = g.groups as { name: string } | null;
-    if (grp?.name) myGroups.push({ id: g.group_id as string, name: grp.name, role: g.role as string });
+    const grp = Array.isArray(g.groups) ? g.groups[0] : g.groups;
+    if (grp && typeof grp === "object" && "name" in grp && grp.name) {
+      myGroups.push({ id: g.group_id as string, name: grp.name as string, role: g.role as string });
+    }
   }
 
   if (!profile) redirect("/onboarding");
