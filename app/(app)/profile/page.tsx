@@ -48,7 +48,7 @@ export default async function ProfilePage() {
   const { data: teamMembers } = teamIds.length > 0
     ? await supabase
         .from("dream_team_members")
-        .select("id, dream_team_id, profile_id, status, profiles!profile_id(nickname)")
+        .select("id, dream_team_id, profile_id, status, profiles!profile_id(nickname, avatar_url)")
         .in("dream_team_id", teamIds)
     : { data: [] };
 
@@ -57,13 +57,14 @@ export default async function ProfilePage() {
     const ownerNick = Array.isArray(tt.profiles)
       ? tt.profiles[0]?.nickname ?? "ผู้เล่น"
       : tt.profiles?.nickname ?? "ผู้เล่น";
-    const members: { id: string; profile_id: string; nickname: string; status: string }[] = [];
-    for (const m of (teamMembers ?? []) as unknown as { id: string; dream_team_id: string; profile_id: string; status: string; profiles: { nickname: string } | null }[]) {
+    const members: { id: string; profile_id: string; nickname: string; avatar_url: string | null; status: string }[] = [];
+    for (const m of (teamMembers ?? []) as unknown as { id: string; dream_team_id: string; profile_id: string; status: string; profiles: { nickname: string; avatar_url: string | null } | null }[]) {
       if (m.dream_team_id === tt.id) {
         members.push({
           id: m.id,
           profile_id: m.profile_id,
           nickname: m.profiles?.nickname ?? "ผู้เล่น",
+          avatar_url: m.profiles?.avatar_url ?? null,
           status: m.status,
         });
       }

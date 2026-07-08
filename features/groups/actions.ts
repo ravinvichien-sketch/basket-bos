@@ -344,7 +344,53 @@ export async function createDreamTeam(
 
   revalidatePath(`/players/${user.id}`);
   revalidatePath("/profile");
-  return { id: dt.id };
+  return {};
+}
+
+export async function deleteDreamTeam(teamId: string): Promise<ActionState> {
+  const { supabase, user } = await getAdminContext();
+
+  const { data: team } = await supabase
+    .from("dream_teams")
+    .select("owner_id")
+    .eq("id", teamId)
+    .single();
+  if (!team || team.owner_id !== user.id) return { error: "คุณไม่ใช่เจ้าของทีมนี้" };
+
+  const { error } = await supabase.from("dream_teams").delete().eq("id", teamId);
+  if (error) return { error: "ลบทีมไม่สำเร็จ" };
+
+  revalidatePath(`/players/${user.id}`);
+  revalidatePath("/profile");
+  return {};
+}
+
+export async function inviteToDreamTeam(
+  teamId: string,
+  profileIds: string[]
+): Promise<ActionState> {
+  const { supabase, user } = await getAdminContext();
+
+  const { data: team } = await supabase
+    .from("dream_teams")
+    .select("owner_id")
+    .eq("id", teamId)
+    .single();
+  if (!team || team.owner_id !== user.id) return { error: "คุณไม่ใช่เจ้าของทีมนี้" };
+
+  const inserts = profileIds.filter((id) => id !== user.id).map((id) => ({
+    dream_team_id: teamId,
+    profile_id: id,
+    status: "pending" as const,
+  }));
+  if (inserts.length === 0) return {};
+
+  const { error } = await supabase.from("dream_team_members").insert(inserts);
+  if (error) return { error: "เชิญสมาชิกไม่สำเร็จ" };
+
+  revalidatePath(`/players/${user.id}`);
+  revalidatePath("/profile");
+  return {};
 }
 
 export async function respondToDreamTeamInvite(
