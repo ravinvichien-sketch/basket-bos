@@ -8,6 +8,7 @@ interface GameBrief {
   title: string;
   startsAt: string;
   location: string;
+  groupName?: string;
   confirmed: number;
   maxPlayers: number;
 }
@@ -27,6 +28,9 @@ export function gameListFlex(games: GameBrief[]) {
           spacing: "sm",
           paddingAll: "16px",
           contents: [
+            ...(g.groupName
+              ? [{ type: "text" as const, text: g.groupName, size: "xs" as const, color: "#F97316" as const, wrap: true }]
+              : []),
             {
               type: "text",
               text: g.title,

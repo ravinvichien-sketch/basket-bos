@@ -81,6 +81,13 @@ async function replySessionPicker(
             contents: [
               {
                 type: "text",
+                text: groupName,
+                size: "xs",
+                color: "#F97316",
+                wrap: true,
+              },
+              {
+                type: "text",
                 text: g.title,
                 weight: "bold",
                 size: "lg",
@@ -792,7 +799,7 @@ async function replyGamesList(
 
   let query = admin
     .from("games")
-    .select("id, title, starts_at, location, max_players")
+    .select("id, title, starts_at, location, max_players, groups!group_id(name)")
     .eq("status", "open")
     .gte("ends_at", new Date().toISOString())
     .order("starts_at", { ascending: true })
@@ -831,6 +838,7 @@ async function replyGamesList(
       minute: "2-digit",
     }),
     location: g.location,
+    groupName: (g.groups as { name?: string } | null)?.name ?? undefined,
     confirmed: countMap.get(g.id) ?? 0,
     maxPlayers: g.max_players,
   }));
@@ -899,8 +907,9 @@ async function replyWithRoster(
     minute: "2-digit",
   });
 
-  let text = `🏀 ${game.title}\n`;
+  let text = "";
   if (group?.name) text += `🎯 ${group.name}\n`;
+  text += `🏀 ${game.title}\n`;
   text += `📅 ${dateStr}\n`;
   text += `📍 ${game.location}\n`;
   if (game.notes) text += `📝 ${game.notes}\n`;
