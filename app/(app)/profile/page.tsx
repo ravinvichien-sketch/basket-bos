@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLang } from "@/lib/i18n-server";
@@ -74,6 +75,17 @@ export default async function ProfilePage() {
   const dtCandidates = (candidateProfiles ?? []).map((p: { id: string; nickname: string }) => ({
     id: p.id, nickname: p.nickname,
   }));
+
+  // Group membership
+  const { data: myGroupRows } = await supabase
+    .from("group_members")
+    .select("group_id, role, groups!group_id(name)")
+    .eq("profile_id", user.id);
+  const myGroups: { id: string; name: string; role: string }[] = [];
+  for (const g of myGroupRows ?? []) {
+    const grp = g.groups as { name: string } | null;
+    if (grp?.name) myGroups.push({ id: g.group_id as string, name: grp.name, role: g.role as string });
+  }
 
   if (!profile) redirect("/onboarding");
 
@@ -167,6 +179,26 @@ export default async function ProfilePage() {
             meId={user.id}
             candidates={dtCandidates}
           />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>🎯 ก๊วนของฉัน</CardTitle>
+        <div className="mt-2 space-y-2">
+          {myGroups.length === 0 ? (
+            <p className="text-sm text-ink-faint py-2 text-center">ยังไม่ได้เป็นสมาชิกก๊วนไหน</p>
+          ) : (
+            myGroups.map((g) => (
+              <Link
+                key={g.id}
+                href={`/groups/${g.id}`}
+                className="flex items-center justify-between rounded-xl bg-surface-overlay px-3 py-2.5 text-sm hover:bg-surface-overlay/70 transition"
+              >
+                <span className="font-medium">{g.name}</span>
+                <span className="text-xs text-ink-faint">{g.role === "admin" ? "admin" : "สมาชิก"}</span>
+              </Link>
+            ))
+          )}
         </div>
       </Card>
     </main>
