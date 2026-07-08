@@ -70,8 +70,8 @@ export default async function GroupDetailPage({
         <h1 className="text-xl font-bold">ไม่พบก๊วน</h1>
         {(groupErr || memberErr) && (
           <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-400 space-y-1">
-            {groupErr && <p>⚠️ groups query: {String(groupErr)}</p>}
-            {memberErr && <p>⚠️ members query: {String(memberErr)}</p>}
+            {groupErr && <p>⚠️ groups query: {JSON.stringify(groupErr, null, 2)}</p>}
+            {memberErr && <p>⚠️ members query: {JSON.stringify(memberErr, null, 2)}</p>}
           </div>
         )}
         <p className="text-sm text-ink-faint">

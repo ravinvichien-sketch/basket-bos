@@ -35,7 +35,7 @@ export function DreamTeamSection({
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
   const handleCreate = () => {
-    if (!teamName.trim() || selectedMembers.length === 0) return;
+    if (!teamName.trim()) return;
     start(async () => {
       const res = await createDreamTeam(teamName, selectedMembers);
       if (!res.error) {
@@ -73,31 +73,37 @@ export function DreamTeamSection({
             className="h-10 w-full rounded-xl bg-surface border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court"
             disabled={pending}
           />
-          <p className="text-xs text-ink-faint">เลือกสมาชิก (สูงสุด 15 คน รวมคุณ)</p>
-          <div className="max-h-48 overflow-y-auto space-y-1">
-            {candidates.map((c) => (
-              <label
-                key={c.id}
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 cursor-pointer text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedMembers.includes(c.id)}
-                  onChange={() => toggleMember(c.id)}
-                  disabled={pending}
-                  className="accent-court"
-                />
-                {c.nickname}
-              </label>
-            ))}
-            {candidates.length === 0 && (
-              <p className="text-xs text-ink-faint py-2 text-center">ไม่มีผู้เล่นให้เลือก</p>
-            )}
-          </div>
+          <details className="group">
+            <summary className="cursor-pointer text-xs text-ink-faint hover:text-ink-dim transition select-none">
+              {selectedMembers.length > 0
+                ? `✓ เลือกสมาชิก ${selectedMembers.length} คนแล้ว — กดเพื่อแก้ไข`
+                : `เลือกสมาชิก (ไม่บังคับ) — กดเพื่อเลือก — สูงสุด 14 คน`}
+            </summary>
+            <div className="max-h-48 overflow-y-auto space-y-1 mt-2">
+              {candidates.map((c) => (
+                <label
+                  key={c.id}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedMembers.includes(c.id)}
+                    onChange={() => toggleMember(c.id)}
+                    disabled={pending}
+                    className="accent-court"
+                  />
+                  {c.nickname}
+                </label>
+              ))}
+              {candidates.length === 0 && (
+                <p className="text-xs text-ink-faint py-2 text-center">ไม่มีผู้เล่นให้เลือก</p>
+              )}
+            </div>
+          </details>
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
-              disabled={pending || !teamName.trim() || selectedMembers.length === 0}
+              disabled={pending || !teamName.trim()}
               className="flex-1 rounded-xl bg-court py-2 text-sm font-semibold text-white hover:bg-court-dark transition disabled:opacity-50"
             >
               สร้าง
