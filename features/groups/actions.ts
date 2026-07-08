@@ -38,10 +38,11 @@ export async function createGroup(
 
   const { supabase } = await getAdminContext();
 
-  const { error } = await supabase.rpc("create_group", {
+  const { data, error } = await supabase.rpc("create_group", {
     p_name: name,
     p_line_group_id: lineGroupId,
   });
+  console.log("RPC result", { data, error });
   if (error?.message?.includes("NOT_ONBOARDED")) {
     return { error: "กรุณาลงทะเบียนให้สมบูรณ์ก่อนตั้งก๊วน" };
   }
@@ -51,7 +52,7 @@ export async function createGroup(
   if (error?.message?.includes("LINE_GROUP_EXISTS")) {
     return { error: "LINE Group ID นี้ถูกใช้ไปแล้ว — แต่ละก๊วนต้องใช้ LINE Group แยกกัน" };
   }
-  if (error) return { error: error.message };
+  if (error) return { error: `[${error.code}] ${error.message}` };
 
   revalidateGroups();
   return {};
