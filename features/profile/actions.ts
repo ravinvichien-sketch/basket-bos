@@ -27,7 +27,7 @@ export async function completeOnboarding(
     return { error: "ตำแหน่งไม่ถูกต้อง" };
   }
 
-  // ก๊วนที่เลือก (ไม่บังคับ เลือกได้หลายก๊วน หรือไม่เลือกเลย)
+  // ก๊วนที่เลือก (ต้องเลือกอย่างน้อย 1)
   let groupIds: string[] = [];
   try {
     const raw = JSON.parse((formData.get("group_ids") as string) || "[]");
@@ -36,6 +36,9 @@ export async function completeOnboarding(
     }
   } catch {
     groupIds = [];
+  }
+  if (groupIds.length === 0) {
+    return { error: "กรุณาเลือกอย่างน้อย 1 ก๊วนที่คุณเล่นอยู่" };
   }
 
   const parsed = onboardingSchema.safeParse({
@@ -79,15 +82,32 @@ export async function completeOnboarding(
   );
   if (posError) return { error: "บันทึกตำแหน่งไม่สำเร็จ กรุณาลองใหม่" };
 
-  // ผูกก๊วนที่เลือก (ถ้ามี) — best-effort ไม่บล็อคการสมัคร
-  try {
-    await supabase.rpc("set_my_groups", { p_group_ids: groupIds });
-  } catch {
-    // ไม่เป็นไร ผู้ใช้ตั้งก๊วนภายหลังได้
-  }
+  // ผูกก๊วนที่เลือก
+  const { error: groupError } = await supabase.rpc("set_my_groups", {
+    p_group_ids: groupIds,
+  });
+  if (groupError) return { error: "ผูกก๊วนไม่สำเร็จ กรุณาลองใหม่" };
 
   revalidatePath("/", "layout");
   redirect("/dashboard");
+}
+
+/** ผู้ใช้เปลี่ยนก๊วนของตัวเอง (เพิ่ม/ลด) */
+export async function setMyGroups(groupIds: string[]): Promise<ActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบใหม่" };
+
+  const { error } = await supabase.rpc("set_my_groups", {
+    p_group_ids: groupIds,
+  });
+  if (error) return { error: "อัปเดตก๊วนไม่สำเร็จ" };
+
+  revalidatePath("/profile");
+  revalidatePath("/", "layout");
+  return {};
 }
 
 export async function setCardPhoto(publicUrl: string): Promise<ActionState> {

@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n";
 import { Card, CardTitle } from "@/components/ui/card";
 import { CardPhotoManager } from "@/features/profile/components/card-photo-manager";
 import { LineIdEditor } from "@/features/profile/components/line-id-editor";
+import { ManageGroups } from "@/features/profile/components/manage-groups";
 import {
   DreamTeamSection,
   type DreamTeamView,
@@ -24,7 +25,7 @@ export default async function ProfilePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: profile }, { data: positions }, { data: myTeams }, { data: candidateProfiles }] = await Promise.all([
+  const [{ data: profile }, { data: positions }, { data: myTeams }, { data: candidateProfiles }, { data: allGroups }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase
       .from("player_positions")
@@ -37,10 +38,12 @@ export default async function ProfilePage() {
       .or(`owner_id.eq.${user.id}`),
     supabase
       .from("profiles")
-      .select("id, nickname")
-      .neq("id", user.id)
-      .eq("onboarded", true)
-      .order("nickname"),
+      .select("id, nickname"),
+    supabase
+      .from("groups")
+      .select("id, name")
+      .is("deleted_at", null)
+      .order("name"),
   ]);
 
   // Dream teams
@@ -186,21 +189,12 @@ export default async function ProfilePage() {
 
       <Card>
         <CardTitle>🎯 ก๊วนของฉัน</CardTitle>
-        <div className="mt-2 space-y-2">
-          {myGroups.length === 0 ? (
-            <p className="text-sm text-ink-faint py-2 text-center">ยังไม่ได้เป็นสมาชิกก๊วนไหน</p>
-          ) : (
-            myGroups.map((g) => (
-              <Link
-                key={g.id}
-                href={`/groups/${g.id}`}
-                className="flex items-center justify-between rounded-xl bg-surface-overlay px-3 py-2.5 text-sm hover:bg-surface-overlay/70 transition"
-              >
-                <span className="font-medium">{g.name}</span>
-                <span className="text-xs text-ink-faint">{g.role === "admin" ? "admin" : "สมาชิก"}</span>
-              </Link>
-            ))
-          )}
+        <div className="mt-2">
+          <ManageGroups
+            allGroups={(allGroups ?? []) as { id: string; name: string }[]}
+            myGroupIds={myGroups.map((g) => g.id)}
+            canManage={true}
+          />
         </div>
       </Card>
     </main>
