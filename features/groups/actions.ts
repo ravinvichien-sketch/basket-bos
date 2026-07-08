@@ -201,25 +201,28 @@ export async function setGroupAdmin(
   return {};
 }
 
-// ── Group Location (Google Maps link) ──
+// ── Group Location (name + Google Maps link) ──
 
 export async function setGroupLocation(
   groupId: string,
-  location: string
+  name: string,
+  url: string
 ): Promise<ActionState> {
   const { supabase, user, isAdmin } = await getAdminContext();
   if (!(await canManageGroup(supabase, groupId, user.id, isAdmin))) {
     return { error: "คุณไม่มีสิทธิ์จัดการก๊วนนี้" };
   }
 
-  const url = location.trim();
-  if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+  const locUrl = url.trim();
+  const locName = name.trim();
+  if (!locName) return { error: "กรุณาใส่ชื่อสถานที่" };
+  if (locUrl && !locUrl.startsWith("http://") && !locUrl.startsWith("https://")) {
     return { error: "กรุณาวางลิงก์ Google Maps ที่ขึ้นต้นด้วย http:// หรือ https://" };
   }
 
   const { error } = await supabase
     .from("groups")
-    .update({ location: url || null })
+    .update({ location: locUrl || null, location_name: locName })
     .eq("id", groupId);
   if (error) return { error: "บันทึกไม่สำเร็จ" };
 
