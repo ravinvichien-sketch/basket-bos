@@ -57,16 +57,39 @@ export async function pushImageToGroup(
   await pushLineImage(groupId, originalUrl, previewUrl);
 }
 
-/** Push a message into the LINE group chat that the bot was invited to. */
-export async function pushToGroup(text: string): Promise<void> {
+/** Push a message into the LINE group chat that a game's group is linked to. */
+export async function pushToGroup(text: string, gameId?: string): Promise<void> {
   if (!lineConfigured()) return;
   const admin = createAdminClient();
-  const { data } = await admin
-    .from("app_settings")
-    .select("value")
-    .eq("key", "line_group_id")
-    .maybeSingle();
-  const groupId = (data?.value as { id?: string } | null)?.id;
+  let groupId: string | undefined;
+
+  if (gameId) {
+    // Look up the game's group to find its LINE Group ID
+    const { data: game } = await admin
+      .from("games")
+      .select("group_id")
+      .eq("id", gameId)
+      .single();
+    if (game?.group_id) {
+      const { data: grp } = await admin
+        .from("groups")
+        .select("line_group_id")
+        .eq("id", game.group_id)
+        .single();
+      groupId = grp?.line_group_id ?? undefined;
+    }
+  }
+
+  // Fallback: global app_settings (legacy)
+  if (!groupId) {
+    const { data } = await admin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "line_group_id")
+      .maybeSingle();
+    groupId = (data?.value as { id?: string } | null)?.id;
+  }
+
   if (!groupId) return;
   await pushLineText(groupId, text);
 }

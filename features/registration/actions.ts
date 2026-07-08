@@ -52,7 +52,7 @@ async function pushRosterToGroup(gameId: string, headline: string) {
       text += `\n\n⏳ สำรอง (${waitlist.length})\n`;
       text += waitlist.map((r, i) => `${i + 1}. ${nick(r)}`).join("\n");
     }
-    await pushToGroup(text);
+    await pushToGroup(text, gameId);
   } catch {
     // best-effort — never block the sign-up flow
   }

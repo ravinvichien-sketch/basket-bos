@@ -6,6 +6,7 @@ import {
   type GroupMemberView,
 } from "@/features/groups/components/group-manager";
 import { GroupLocationEditor } from "@/features/groups/components/group-location-editor";
+import { GroupLineGroupIdEditor } from "@/features/groups/components/group-line-group-id-editor";
 import { Card, CardTitle } from "@/components/ui/card";
 import { formatThaiDateTime } from "@/lib/format";
 
@@ -27,7 +28,7 @@ export default async function GroupDetailPage({
     await Promise.all([
       supabase
         .from("groups")
-        .select("id, name, deleted_at")
+        .select("id, name, location, line_group_id, deleted_at")
         .eq("id", groupId)
         .single(),
       supabase
@@ -96,9 +97,18 @@ export default async function GroupDetailPage({
         <div className="mt-2">
           <GroupLocationEditor
             groupId={groupId}
-            currentLocation={null}
-            currentLat={null}
-            currentLng={null}
+            currentLocation={group.location}
+            canManage={canManage}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>💬 LINE Group</CardTitle>
+        <div className="mt-2">
+          <GroupLineGroupIdEditor
+            groupId={groupId}
+            currentLineGroupId={group.line_group_id}
             canManage={canManage}
           />
         </div>

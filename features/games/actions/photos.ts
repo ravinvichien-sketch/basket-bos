@@ -12,29 +12,43 @@ export async function uploadGamePhoto(
 ): Promise<{ error?: string }> {
   const { user } = await requireUser();
   const admin = createAdminClient();
-  const file = formData.get("photo") as File | null;
-  if (!file) return { error: "กรุณาเลือกรูป" };
+  const files = formData.getAll("photo") as File[];
 
-  if (file.size > 10 * 1024 * 1024) return { error: "รูปต้องไม่เกิน 10MB" };
-  if (!file.type.startsWith("image/")) return { error: "ไฟล์ต้องเป็นรูปภาพ" };
+  if (files.length === 0) return { error: "กรุณาเลือกรูป" };
 
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const path = `${gameId}/${user.id}_${Date.now()}.${ext}`;
-
-  const { error: uploadError } = await admin.storage
-    .from("game_photos")
-    .upload(path, file);
-
-  if (uploadError) return { error: "อัปโหลดไม่สำเร็จ" };
-
-  const { error: dbError } = await admin
-    .from("game_photos")
-    .insert({ game_id: gameId, uploaded_by: user.id, storage_path: path });
-
-  if (dbError) {
-    await admin.storage.from("game_photos").remove([path]);
-    return { error: "บันทึกไม่สำเร็จ" };
+  // Check bucket exists
+  const { data: buckets } = await admin.storage.listBuckets();
+  const bucketExists = buckets?.some((b) => b.name === "game_photos");
+  if (!bucketExists) {
+    return { error: "ยังไม่ได้สร้างที่เก็บรูป — กรุณาแจ้งแอดมิน" };
   }
+
+  let uploaded = 0;
+  for (const file of files) {
+    if (file.size > 10 * 1024 * 1024) continue;
+    if (!file.type.startsWith("image/")) continue;
+
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `${gameId}/${user.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+
+    const { error: uploadError } = await admin.storage
+      .from("game_photos")
+      .upload(path, file);
+
+    if (uploadError) continue;
+
+    const { error: dbError } = await admin
+      .from("game_photos")
+      .insert({ game_id: gameId, uploaded_by: user.id, storage_path: path });
+
+    if (dbError) {
+      await admin.storage.from("game_photos").remove([path]);
+      continue;
+    }
+    uploaded++;
+  }
+
+  if (uploaded === 0) return { error: "อัปโหลดไม่สำเร็จ — ตรวจสอบขนาดรูป (สูงสุด 10MB)" };
 
   revalidatePath(`/games/${gameId}/photos`);
   return {};

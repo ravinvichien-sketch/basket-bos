@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getLang } from "@/lib/i18n-server";
 import { t } from "@/lib/i18n";
 import { JerseyNameForm } from "@/features/settings/components/jersey-name-form";
+import { AvatarUpload } from "@/features/settings/components/avatar-upload";
 import { LanguageToggle } from "@/features/settings/components/language-toggle";
 import { Card, CardTitle } from "@/components/ui/card";
 
@@ -17,7 +18,7 @@ export default async function SettingsPage() {
   const lang = await getLang();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("nickname")
+    .select("nickname, avatar_url")
     .eq("id", user.id)
     .single();
 
@@ -32,6 +33,10 @@ export default async function SettingsPage() {
 
       <Card>
         <JerseyNameForm lang={lang} current={profile?.nickname ?? ""} />
+      </Card>
+
+      <Card>
+        <AvatarUpload currentUrl={profile?.avatar_url ?? null} />
       </Card>
 
       <Card>

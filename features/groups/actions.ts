@@ -201,24 +201,60 @@ export async function setGroupAdmin(
   return {};
 }
 
-// ── Group Location ──
+// ── Group Location (Google Maps link) ──
 
 export async function setGroupLocation(
   groupId: string,
-  location: string,
-  lat: number | null,
-  lng: number | null
+  location: string
 ): Promise<ActionState> {
   const { supabase, user, isAdmin } = await getAdminContext();
   if (!(await canManageGroup(supabase, groupId, user.id, isAdmin))) {
     return { error: "คุณไม่มีสิทธิ์จัดการก๊วนนี้" };
   }
 
+  const url = location.trim();
+  if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+    return { error: "กรุณาวางลิงก์ Google Maps ที่ขึ้นต้นด้วย http:// หรือ https://" };
+  }
+
   const { error } = await supabase
     .from("groups")
-    .update({ location: location || null, lat, lng })
+    .update({ location: url || null })
     .eq("id", groupId);
   if (error) return { error: "บันทึกไม่สำเร็จ" };
+
+  revalidateGroups(groupId);
+  return {};
+}
+
+// ── LINE Group ID ──
+
+export async function setGroupLineGroupId(
+  groupId: string,
+  lineGroupId: string
+): Promise<ActionState> {
+  const { supabase, user, isAdmin } = await getAdminContext();
+  if (!(await canManageGroup(supabase, groupId, user.id, isAdmin))) {
+    return { error: "คุณไม่มีสิทธิ์จัดการก๊วนนี้" };
+  }
+
+  const id = lineGroupId.trim();
+  if (!id) return { error: "กรุณาใส่ LINE Group ID" };
+
+  // check duplicate
+  const { data: existing } = await supabase
+    .from("groups")
+    .select("id")
+    .eq("line_group_id", id)
+    .neq("id", groupId)
+    .maybeSingle();
+  if (existing) return { error: "LINE Group ID นี้ถูกก๊วนอื่นใช้ไปแล้ว" };
+
+  const { error } = await supabase
+    .from("groups")
+    .update({ line_group_id: id })
+    .eq("id", groupId);
+  if (error) return { error: "บันทึก LINE Group ID ไม่สำเร็จ" };
 
   revalidateGroups(groupId);
   return {};

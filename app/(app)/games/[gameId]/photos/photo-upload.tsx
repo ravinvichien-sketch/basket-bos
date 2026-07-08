@@ -22,11 +22,12 @@ export function PhotoUpload({ gameId }: { gameId: string }) {
           type="file"
           name="photo"
           accept="image/*"
+          multiple
           required
           className="hidden"
           onChange={() => ref.current?.requestSubmit()}
         />
-        {pending ? "⏳ กำลังอัปโหลด..." : "📸 + เพิ่มรูปภาพ"}
+        {pending ? "⏳ กำลังอัปโหลด..." : "📸 + เลือกรูป (เลือกหลายรูปได้)"}
       </label>
       {state.error && (
         <p className="rounded-lg bg-red-500/10 text-red-400 text-sm px-3 py-2 text-center">

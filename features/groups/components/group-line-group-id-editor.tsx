@@ -1,26 +1,26 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setGroupLocation } from "../actions";
+import { setGroupLineGroupId } from "../actions";
 
-export function GroupLocationEditor({
+export function GroupLineGroupIdEditor({
   groupId,
-  currentLocation,
+  currentLineGroupId,
   canManage,
 }: {
   groupId: string;
-  currentLocation: string | null;
+  currentLineGroupId: string | null;
   canManage: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [loc, setLoc] = useState(currentLocation ?? "");
+  const [value, setValue] = useState(currentLineGroupId ?? "");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = () => {
     setError(null);
     start(async () => {
-      const r = await setGroupLocation(groupId, loc);
+      const r = await setGroupLineGroupId(groupId, value);
       if (r.error) setError(r.error);
       else setEditing(false);
     });
@@ -31,15 +31,14 @@ export function GroupLocationEditor({
       {editing ? (
         <div className="space-y-2">
           <input
-            value={loc}
-            onChange={(e) => setLoc(e.target.value)}
-            placeholder="วางลิงก์ Google Maps ที่นี่"
-            maxLength={500}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="LINE Group ID"
             className="h-10 w-full rounded-xl bg-surface border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court"
             disabled={pending}
           />
           <p className="text-xs text-ink-faint">
-            เปิด Google Maps → กด "แชร์" หรือ "คัดลอกลิงก์" → วางตรงนี้
+            เชิญบอทเข้ากลุ่ม → พิมพ์ groupid → คัดลอก ID มาวางตรงนี้
           </p>
           <div className="flex gap-2">
             <button
@@ -62,17 +61,10 @@ export function GroupLocationEditor({
       ) : (
         <div className="flex items-center justify-between">
           <div>
-            {currentLocation ? (
-              <a
-                href={currentLocation}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-court underline hover:text-court-dark transition"
-              >
-                📍 เปิด Google Maps →
-              </a>
+            {currentLineGroupId ? (
+              <p className="text-sm font-mono text-ink-dim">{currentLineGroupId}</p>
             ) : (
-              <p className="text-sm text-ink-faint">ยังไม่ระบุสถานที่</p>
+              <p className="text-sm text-ink-faint">ยังไม่ได้ผูก LINE Group</p>
             )}
           </div>
           {canManage && (
