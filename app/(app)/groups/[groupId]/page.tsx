@@ -56,28 +56,7 @@ export default async function GroupDetailPage({
     ]);
 
   console.log("DEBUG group detail", { group, groupId, userId: user.id, memberRows: memberRows?.length });
-  // Debug: log group query error
-  if (!group || group.deleted_at) {
-    console.error("DEBUG group detail — group query failed", { groupId, userId: user.id });
-    try {
-      const { data: debugGroup, error: debugErr } = await supabase
-        .from("groups")
-        .select("id, name")
-        .eq("id", groupId)
-        .maybeSingle();
-      console.error("DEBUG fallback query", { debugGroup, debugErr });
-      const { data: debugMember, error: debugMemErr } = await supabase
-        .from("group_members")
-        .select("group_id, role")
-        .eq("group_id", groupId)
-        .eq("profile_id", user.id)
-        .maybeSingle();
-      console.error("DEBUG member check", { debugMember, debugMemErr });
-    } catch (e) {
-      console.error("DEBUG exception", e);
-    }
-    notFound();
-  }
+  if (!group || group.deleted_at) notFound();
 
   const rows = (memberRows ?? []) as unknown as MemberRow[];
   const iAmGroupAdmin = rows.some(
