@@ -602,33 +602,50 @@ async function handleEvent(
         return;
       }
 
-      const openGames = await getOpenGamesInGroup(admin, group.id);
-      if (openGames.length === 0) {
+      // Find open sessions in this group that the user is registered in
+      const now = new Date().toISOString();
+      const { data: myRegs } = await admin
+        .from("registrations")
+        .select("game_id, status, games!inner(id, title, starts_at, status, group_id)")
+        .eq("profile_id", profile.id)
+        .eq("games.group_id", group.id)
+        .eq("games.status", "open")
+        .gte("games.ends_at", now)
+        .in("status", ["confirmed", "waitlisted"])
+        .order("games(starts_at)", { ascending: true })
+        .limit(5);
+
+      if (!myRegs || myRegs.length === 0) {
         await replyLineText(
           replyToken,
-          "❌ ก๊วนนี้ยังไม่มี Session ที่เปิดรับอยู่"
+          "❌ คุณยังไม่ได้ลงชื่อใน Session ที่เปิดรับของก๊วนนี้"
         );
         return;
       }
 
-      const picked = pickGame(openGames, "latest");
-      if (!picked) {
-        await replyLineText(replyToken, "❌ ไม่พบ Session");
-        return;
+      if (myRegs.length === 1) {
+        const reg = myRegs[0];
+        const g = reg.games as unknown as { id: string };
+        const { error } = await admin.rpc("cancel_registration", {
+          p_game_id: g.id,
+          p_profile_id: profile.id,
+        });
+        if (error) {
+          await replyLineText(
+            replyToken,
+            "❌ ถอนตัวไม่สำเร็จ"
+          );
+          return;
+        }
+        await replyWithRoster(admin, replyToken, g.id);
+      } else {
+        // Multiple sessions the user is registered in → show picker
+        const pickGames: OpenGameBrief[] = myRegs.map((r) => {
+          const g = r.games as unknown as OpenGameBrief;
+          return { id: g.id, title: g.title, starts_at: g.starts_at };
+        });
+        await replySessionPicker(replyToken, group.name, pickGames);
       }
-
-      const { error } = await admin.rpc("cancel_registration", {
-        p_game_id: picked.id,
-        p_profile_id: profile.id,
-      });
-      if (error) {
-        await replyLineText(
-          replyToken,
-          "❌ ถอนตัวไม่สำเร็จ — คุณอาจยังไม่ได้ลงชื่อ"
-        );
-        return;
-      }
-      await replyWithRoster(admin, replyToken, picked.id);
       return;
     }
 
