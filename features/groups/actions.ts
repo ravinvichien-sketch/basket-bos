@@ -325,7 +325,7 @@ export async function createDreamTeam(
     .insert({ name: n, owner_id: user.id })
     .select("id")
     .single();
-  if (error) return { error: "สร้างทีมไม่สำเร็จ" };
+  if (error) return { error: `สร้างทีมไม่สำเร็จ: ${error.message}` };
 
   // Add owner as accepted + invite members
   const inserts = [
@@ -340,7 +340,7 @@ export async function createDreamTeam(
   const { error: insError } = await supabase
     .from("dream_team_members")
     .insert(inserts);
-  if (insError) return { error: "เพิ่มสมาชิกไม่สำเร็จ" };
+  if (insError) return { error: `เพิ่มสมาชิกไม่สำเร็จ: ${insError.message}` };
 
   revalidatePath(`/players/${user.id}`);
   revalidatePath("/profile");
