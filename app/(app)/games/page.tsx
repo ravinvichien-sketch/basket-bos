@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAdminContext } from "@/features/auth/guards";
 import { GameCard } from "@/features/games/components/game-card";
+import { AdminGameActions } from "@/features/games/components/admin-game-actions";
 import { Card } from "@/components/ui/card";
 import type { Game } from "@/types/database";
 
@@ -85,11 +86,13 @@ export default async function GamesPage() {
         <h2 className="text-sm font-semibold text-ink-dim">กำลังจะมาถึง</h2>
         {upcoming && upcoming.length > 0 ? (
           upcoming.map((game) => (
-            <GameCard
-              key={game.id}
-              game={game as Game}
-              confirmedCount={counts.get(game.id)}
-            />
+            <div key={game.id} className="relative">
+              <GameCard
+                game={game as Game}
+                confirmedCount={counts.get(game.id)}
+              />
+              {isAdmin && <AdminGameActions gameId={game.id} />}
+            </div>
           ))
         ) : (
           <Card className="py-10 text-center text-ink-faint text-sm">
@@ -108,11 +111,13 @@ export default async function GamesPage() {
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-ink-dim">ที่ผ่านมา</h2>
           {past.map((game) => (
-            <GameCard
-              key={game.id}
-              game={game as Game}
-              confirmedCount={counts.get(game.id)}
-            />
+            <div key={game.id} className="relative">
+              <GameCard
+                game={game as Game}
+                confirmedCount={counts.get(game.id)}
+              />
+              {isAdmin && <AdminGameActions gameId={game.id} />}
+            </div>
           ))}
         </section>
       )}
