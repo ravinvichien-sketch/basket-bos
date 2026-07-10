@@ -12,6 +12,7 @@ import {
   recordMatchEvent,
   undoMatchEvent,
   subtractPoints,
+  saveMatchMinutes,
 } from "../actions";
 import {
   swapPlayers,
@@ -126,8 +127,10 @@ export function LiveMatch({
     Record<string, Record<string, number>>
   >({});
   const [guestPoints, setGuestPoints] = useState<Record<string, number>>({});
+  const [playerMinutes, setPlayerMinutes] = useState<Record<string, number>>({});
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const minutesRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const subRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const timerEndRef = useRef<number | null>(null);
 
@@ -321,6 +324,34 @@ export function LiveMatch({
     };
   }, [timerRunning, timerStartedAt]);
 
+  // ── Track per-player minutes while timer runs ──
+  const activePlayerIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    activePlayerIdsRef.current = new Set(
+      teams.flatMap((t) => t.members.map((m) => m.profileId))
+    );
+  }, [teams]);
+
+  useEffect(() => {
+    if (timerRunning && gameState === "playing") {
+      const id = setInterval(() => {
+        setPlayerMinutes((prev) => {
+          const next = { ...prev };
+          for (const pid of activePlayerIdsRef.current) {
+            next[pid] = (next[pid] ?? 0) + 1;
+          }
+          return next;
+        });
+      }, 1000);
+      minutesRef.current = id;
+    } else {
+      if (minutesRef.current) clearInterval(minutesRef.current);
+    }
+    return () => {
+      if (minutesRef.current) clearInterval(minutesRef.current);
+    };
+  }, [timerRunning, gameState]);
+
   // ── Realtime subscription for timer state ──
   useEffect(() => {
     if (!currentMatchId) return;
@@ -374,6 +405,7 @@ export function LiveMatch({
       setMessage(`🎯 ถึง ${targetScore} แต้ม! เกมส์จบ`);
       if (currentMatchId) {
         startTransition(async () => {
+          await saveMatchMinutes(currentMatchId, gameId, playerMinutes);
           await toggleMatchTimer(currentMatchId, timerSeconds, false);
         });
       }
@@ -524,20 +556,23 @@ export function LiveMatch({
   }
 
   function handleRemoveFromTeam(playerId: string) {
-    if (gameState !== "idle" || !canControl) return;
+    if (gameState !== "idle" || !canControl) {
+      setMessage("ไม่สามารถนำออกได้ตอนนี้");
+      return;
+    }
     setSelectedSwapId(null);
-    setMessage(null);
+    setMessage("กำลังนำออก...");
     startTransition(async () => {
       try {
         const res = await removePlayerFromTeam(gameId, playerId);
         if (res?.error) {
-          setMessage(res.error);
+          setMessage("❗ " + res.error);
         } else {
           setMessage("✓ นำออกแล้ว");
-          window.location.reload();
+          setTimeout(() => window.location.reload(), 300);
         }
       } catch (e) {
-        setMessage("เกิดข้อผิดพลาด");
+        setMessage("❗ เกิดข้อผิดพลาด: " + (e instanceof Error ? e.message : "unknown"));
       }
     });
   }
@@ -575,6 +610,7 @@ export function LiveMatch({
       setTimerSeconds(gameDurationMinutes * 60);
       setDbStats({});
       setGuestPoints({});
+      setPlayerMinutes({});
       setMessage(null);
     });
   }
@@ -597,6 +633,8 @@ export function LiveMatch({
   function handleEndGame() {
     if (!currentMatchId || !teamA || !teamB) return;
     startTransition(async () => {
+      // Save accumulated minutes first
+      await saveMatchMinutes(currentMatchId, gameId, playerMinutes);
       // For multi-recorder mode, don't batch save deltas — stats are already in DB
       const res = await endMatchGame(
         currentMatchId,
@@ -629,7 +667,14 @@ export function LiveMatch({
     setTimerSeconds(gameDurationMinutes * 60);
     setDbStats({});
     setGuestPoints({});
+    setPlayerMinutes({});
     setMessage(null);
+  }
+
+  function formatMinutes(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
   }
 
   function playerCard(m: LivePlayer, team: LiveTeam) {
@@ -641,6 +686,7 @@ export function LiveMatch({
     const stl = stats?.steals ?? 0;
     const blk = stats?.blocks ?? 0;
     const tov = stats?.turnovers ?? 0;
+    const mins = playerMinutes[m.profileId] ?? 0;
 
     return (
       <div
@@ -677,6 +723,11 @@ export function LiveMatch({
           <span className="min-w-0 flex-1 truncate text-xs font-semibold">
             {m.nickname}
           </span>
+          {gameState === "playing" && (
+            <span className="text-[10px] text-ink-faint tabular-nums mr-1">
+              {formatMinutes(mins)}
+            </span>
+          )}
           <span
             className="font-display text-base font-bold tabular-nums"
             style={{ color: team.color }}

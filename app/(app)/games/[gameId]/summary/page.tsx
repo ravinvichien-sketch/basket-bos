@@ -31,6 +31,7 @@ interface StatRow {
   team_id: string | null;
   points: number;
   assists: number;
+  minutes: number;
   reb_off: number;
   reb_def: number;
   steals: number;
@@ -74,7 +75,7 @@ export default async function SummaryPage({
   params: Promise<{ gameId: string }>;
 }) {
   const { gameId } = await params;
-  const { supabase, user } = await getAdminContext();
+  const { supabase, user, isAdmin } = await getAdminContext();
 
   const [{ data: game }, { data: matches }, { data: stats }, { data: teamsData }] =
     await Promise.all([
@@ -93,7 +94,7 @@ export default async function SummaryPage({
       supabase
         .from("player_game_stats")
         .select(
-          "profile_id, match_id, team_id, points, assists, reb_off, reb_def, steals, blocks, turnovers, fouls, fgm, fga, tpm, tpa, ftm, fta, is_mvp, plus_minus"
+          "profile_id, match_id, team_id, points, minutes, assists, reb_off, reb_def, steals, blocks, turnovers, fouls, fgm, fga, tpm, tpa, ftm, fta, is_mvp, plus_minus"
         )
         .eq("game_id", gameId),
       supabase
@@ -126,13 +127,14 @@ export default async function SummaryPage({
   const hasMatchRows = statRows.some((s) => s.match_id);
   const playerTotals = new Map<
     string,
-    { points: number; assists: number; reb: number; steals: number; blocks: number; fouls: number; games: number; plusMinus: number; mvpCount: number }
+    { points: number; minutes: number; assists: number; reb: number; steals: number; blocks: number; fouls: number; games: number; plusMinus: number; mvpCount: number }
   >();
   for (const s of statRows) {
     if (hasMatchRows && !s.match_id) continue; // ข้าม session-level rows ถ้ามี per-match อยู่แล้ว
     const cur = playerTotals.get(s.profile_id) ?? {
-      points: 0, assists: 0, reb: 0, steals: 0, blocks: 0, fouls: 0, games: 0, plusMinus: 0, mvpCount: 0,
+      points: 0, minutes: 0, assists: 0, reb: 0, steals: 0, blocks: 0, fouls: 0, games: 0, plusMinus: 0, mvpCount: 0,
     };
+    cur.minutes += s.minutes;
     cur.points += s.points;
     cur.assists += s.assists;
     cur.reb += s.reb_off + s.reb_def;
@@ -200,8 +202,8 @@ export default async function SummaryPage({
     teamA: string; teamB: string;
     scoreA: number; scoreB: number;
     teamAId: string | null; teamBId: string | null;
-    teamAStats: { id: string; nickname: string; avatar_url: string | null; points: number; assists: number; reb: number; steals: number; blocks: number; plusMinus: number; gameScore: number; isMvp: boolean; fgm: number; fga: number; tpm: number; tpa: number; ftm: number; fta: number }[];
-    teamBStats: { id: string; nickname: string; avatar_url: string | null; points: number; assists: number; reb: number; steals: number; blocks: number; plusMinus: number; gameScore: number; isMvp: boolean; fgm: number; fga: number; tpm: number; tpa: number; ftm: number; fta: number }[];
+    teamAStats: { id: string; nickname: string; avatar_url: string | null; points: number; minutes: number; assists: number; reb: number; steals: number; blocks: number; plusMinus: number; gameScore: number; isMvp: boolean; fgm: number; fga: number; tpm: number; tpa: number; ftm: number; fta: number }[];
+    teamBStats: { id: string; nickname: string; avatar_url: string | null; points: number; minutes: number; assists: number; reb: number; steals: number; blocks: number; plusMinus: number; gameScore: number; isMvp: boolean; fgm: number; fga: number; tpm: number; tpa: number; ftm: number; fta: number }[];
   }>();
   for (const m of finishedMatches) {
     const matchStats = statRows
@@ -220,6 +222,7 @@ export default async function SummaryPage({
           nickname: p?.nickname ?? "ผู้เล่น",
           avatar_url: p?.avatar_url ?? null,
           points: s.points,
+          minutes: s.minutes,
           assists: s.assists,
           reb: s.reb_off + s.reb_def,
           steals: s.steals,
@@ -366,6 +369,7 @@ export default async function SummaryPage({
                                 <span className="flex-1 truncate">{s.nickname}</span>
                                 {s.isMvp && <span className="text-[10px]">👑</span>}
                                 <span className="tabular-nums">{s.points}</span>
+                                <span className="tabular-nums text-ink-faint">{s.minutes}m</span>
                                 {fgPct !== null && <span className="tabular-nums text-ink-faint">{fgPct}%</span>}
                                 {tpPct !== null && <span className="tabular-nums text-ink-faint">3P{tpPct}%</span>}
                                 <span className={cn("tabular-nums", s.plusMinus > 0 ? "text-emerald-400" : s.plusMinus < 0 ? "text-red-400" : "text-ink-faint")}>
@@ -391,6 +395,7 @@ export default async function SummaryPage({
                                 <span className="flex-1 truncate text-right">{s.nickname}</span>
                                 {s.isMvp && <span className="text-[10px]">👑</span>}
                                 <span className="tabular-nums">{s.points}</span>
+                                <span className="tabular-nums text-ink-faint">{s.minutes}m</span>
                                 {fgPct !== null && <span className="tabular-nums text-ink-faint">{fgPct}%</span>}
                                 {tpPct !== null && <span className="tabular-nums text-ink-faint">3P{tpPct}%</span>}
                                 <span className={cn("tabular-nums", s.plusMinus > 0 ? "text-emerald-400" : s.plusMinus < 0 ? "text-red-400" : "text-ink-faint")}>
@@ -535,7 +540,7 @@ export default async function SummaryPage({
                               <span className="h-[18px] w-[18px] rounded-full bg-surface-overlay flex items-center justify-center text-[8px]">🏀</span>
                             )}
                             <span className="truncate">{p?.nickname ?? "ผู้เล่น"}</span>
-                            {user.id === pid && (
+                            {(user.id === pid || isAdmin) && (
                               <AnalyzeButton gameId={gameId} profileId={pid} nickname={p?.nickname ?? "ผู้เล่น"} />
                             )}
                           </span>
@@ -570,16 +575,16 @@ export default async function SummaryPage({
 
       <div className="flex gap-2">
         <Link
-          href={`/games/${gameId}/live`}
+          href={`/games/${gameId}/my-stats`}
           className="flex-1 flex h-11 items-center justify-center rounded-xl bg-court text-sm font-semibold text-white hover:bg-court-dark transition"
         >
-          🔴 จดสกอร์สด
+          🏀 สถิติของฉัน
         </Link>
         <Link
-          href={`/games/${gameId}/stats`}
+          href={`/games/${gameId}/live`}
           className="flex-1 flex h-11 items-center justify-center rounded-xl bg-surface-overlay text-sm font-semibold hover:bg-surface-overlay/70 transition"
         >
-          📊 กรอกสถิติ
+          🔴 จดสกอร์สด
         </Link>
       </div>
     </main>

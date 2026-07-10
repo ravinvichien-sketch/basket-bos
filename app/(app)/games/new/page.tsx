@@ -6,25 +6,33 @@ import { toBangkokInput } from "@/lib/format";
 
 export default async function NewGamePage() {
   const { supabase, user, isAdmin } = await getAdminContext();
+  const { data: myAdminGroups } = await supabase
+    .from("group_members")
+    .select("group_id, role, groups!group_id(id, name, play_start_time, play_end_time)")
+    .eq("profile_id", user.id);
 
-  // ก๊วนที่ผู้ใช้สร้างนัดได้: แอดมินเต็มระบบ = ทุกก๊วน / แอดมินก๊วน = เฉพาะก๊วนตัวเอง
-  const { data: allGroups } = await supabase
-    .from("groups")
-    .select("id, name, play_start_time, play_end_time")
-    .is("deleted_at", null)
-    .order("name");
+  const groupMap = new Map<string, { id: string; name: string; play_start_time: string | null; play_end_time: string | null }>();
+  for (const row of myAdminGroups ?? []) {
+    const g = Array.isArray(row.groups) ? row.groups[0] : row.groups;
+    if (g && typeof g === "object" && "id" in g && "name" in g) {
+      groupMap.set(g.id as string, g as { id: string; name: string; play_start_time: string | null; play_end_time: string | null });
+    }
+  }
 
-  let groups = allGroups ?? [];
-  if (!isAdmin) {
-    const { data: myAdminGroups } = await supabase
-      .from("group_members")
-      .select("group_id")
-      .eq("profile_id", user.id)
-      .eq("role", "admin");
+  // ถ้าเป็น super admin → เห็นทุกก๊วน; ถ้าเป็น group admin → เห็นเฉพาะก๊วนที่ admin
+  let groups: { id: string; name: string; play_start_time: string | null; play_end_time: string | null }[] = [];
+  if (isAdmin) {
+    const { data: allGroups } = await supabase
+      .from("groups")
+      .select("id, name, play_start_time, play_end_time")
+      .is("deleted_at", null)
+      .order("name");
+    groups = (allGroups ?? []) as typeof groups;
+  } else {
     const adminGroupIds = new Set(
-      (myAdminGroups ?? []).map((m) => m.group_id)
+      (myAdminGroups ?? []).filter((r) => r.role === "admin").map((r) => r.group_id)
     );
-    groups = groups.filter((g) => adminGroupIds.has(g.id));
+    groups = Array.from(groupMap.values()).filter((g) => adminGroupIds.has(g.id));
   }
 
   // ไม่ใช่แอดมินของก๊วนไหนเลย → ไม่มีสิทธิ์สร้างนัด

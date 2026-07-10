@@ -21,12 +21,11 @@ export function CreateGroupForm() {
       <div className="space-y-1">
         <input
           name="line_group_id"
-          required
-          placeholder="LINE Group ID"
+          placeholder="LINE Group ID (ไม่บังคับ)"
           className="h-11 w-full rounded-xl bg-surface-overlay border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court"
         />
         <p className="text-[11px] text-ink-faint pl-1">
-          เชิญบอท Basket Bos เข้า LINE Group → บอทจะตอบ ID กลับมา — คัดลอกมาวางตรงนี้
+          ใส่ทีหลังก็ได้ — เชิญบอท Basket Bos เข้า LINE Group แล้วบอทจะตอบ ID มา
         </p>
       </div>
       <div className="grid grid-cols-2 gap-2">

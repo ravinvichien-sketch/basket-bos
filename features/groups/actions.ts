@@ -34,15 +34,14 @@ export async function createGroup(
   const name = String(formData.get("name") ?? "").trim();
   if (!name || name.length > 60) return { error: "ใส่ชื่อก๊วน 1–60 ตัวอักษร" };
   const lineGroupId = String(formData.get("line_group_id") ?? "").trim();
-  if (!lineGroupId) return { error: "กรุณาใส่ LINE Group ID" };
 
   const { supabase } = await getAdminContext();
 
   const playStart = formData.get("play_start_time") as string;
   const playEnd = formData.get("play_end_time") as string;
-  const rpcParams: Record<string, string> = {
+  const rpcParams: Record<string, string | null> = {
     p_name: name,
-    p_line_group_id: lineGroupId,
+    p_line_group_id: lineGroupId || null,
   };
   if (playStart) rpcParams.p_play_start_time = playStart;
   if (playEnd) rpcParams.p_play_end_time = playEnd;
@@ -51,9 +50,6 @@ export async function createGroup(
   console.log("RPC result", { data, error });
   if (error?.message?.includes("NOT_ONBOARDED")) {
     return { error: "กรุณาลงทะเบียนให้สมบูรณ์ก่อนตั้งก๊วน" };
-  }
-  if (error?.message?.includes("NO_LINE_GROUP")) {
-    return { error: "กรุณาใส่ LINE Group ID" };
   }
   if (error?.message?.includes("LINE_GROUP_EXISTS")) {
     return { error: "LINE Group ID นี้ถูกใช้ไปแล้ว — แต่ละก๊วนต้องใช้ LINE Group แยกกัน" };

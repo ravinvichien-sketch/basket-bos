@@ -644,6 +644,36 @@ export async function recordMatchEvent(
   return { saved: true };
 }
 
+/** บันทึกนาทีที่สะสมไว้ให้ผู้เล่นในแมทช์ (เรียกเมื่อจบเกมส์) */
+export async function saveMatchMinutes(
+  matchId: string,
+  gameId: string,
+  minutes: Record<string, number>
+): Promise<ActionState> {
+  const { supabase } = await requireUser();
+  const entries = Object.entries(minutes);
+  if (entries.length === 0) return {};
+
+  for (const [profileId, sec] of entries) {
+    const mins = Math.round(sec / 60);
+    const { data: existing } = await supabase
+      .from("player_game_stats")
+      .select("id, minutes")
+      .eq("game_id", gameId)
+      .eq("match_id", matchId)
+      .eq("profile_id", profileId)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("player_game_stats")
+        .update({ minutes: mins })
+        .eq("id", existing.id);
+    }
+  }
+  return { saved: true };
+}
+
 /** ยกเลิก event ล่าสุด — ลดค่าสถิติตาม eventKey */
 export async function undoMatchEvent(
   matchId: string,
@@ -985,4 +1015,71 @@ async function gameIdFromMatch(matchId: string): Promise<string> {
     .eq("id", matchId)
     .single();
   return data?.game_id ?? "";
+}
+
+/** บันทึก URL การ์ดที่ generate แล้ว */
+export async function saveCardUrl(
+  gameId: string,
+  profileId: string,
+  cardUrl: string
+): Promise<ActionState & { id?: string }> {
+  const { supabase } = await requireUser();
+  const { data: existing } = await supabase
+    .from("player_card_generations")
+    .select("id")
+    .eq("game_id", gameId)
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  let id: string;
+  if (existing) {
+    const { error } = await supabase
+      .from("player_card_generations")
+      .update({ card_url: cardUrl })
+      .eq("id", existing.id);
+    if (error) return { error: "บันทึกไม่สำเร็จ" };
+    id = existing.id;
+  } else {
+    const { data, error } = await supabase
+      .from("player_card_generations")
+      .insert({ game_id: gameId, profile_id: profileId, card_url: cardUrl })
+      .select("id")
+      .single();
+    if (error) return { error: "บันทึกไม่สำเร็จ" };
+    id = data.id;
+  }
+
+  revalidatePath(`/games/${gameId}/my-stats`);
+  return { saved: true, id };
+}
+
+/** บันทึก URL รูป AI */
+export async function saveAiImageUrl(
+  gameId: string,
+  profileId: string,
+  aiImageUrl: string
+): Promise<ActionState> {
+  const { supabase } = await requireUser();
+  const { data: existing } = await supabase
+    .from("player_card_generations")
+    .select("id")
+    .eq("game_id", gameId)
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("player_card_generations")
+      .update({ ai_image_url: aiImageUrl })
+      .eq("id", existing.id);
+    if (error) return { error: "บันทึกไม่สำเร็จ" };
+  } else {
+    const { error } = await supabase
+      .from("player_card_generations")
+      .insert({ game_id: gameId, profile_id: profileId, ai_image_url: aiImageUrl });
+    if (error) return { error: "บันทึกไม่สำเร็จ" };
+  }
+
+  revalidatePath(`/games/${gameId}/my-stats`);
+  return { saved: true };
 }

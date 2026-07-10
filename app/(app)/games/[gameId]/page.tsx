@@ -431,6 +431,12 @@ export default async function GameDetailPage({
             ⚖️ จัดทีม
           </Link>
           <Link
+            href={`/games/${gameId}/my-stats`}
+            className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
+          >
+            🏀 สถิติฉัน
+          </Link>
+          <Link
             href={`/games/${gameId}/stats`}
             className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
           >
