@@ -62,21 +62,23 @@ function PlayerRow({
       <span className="w-6 text-right text-sm text-ink-faint tabular-nums">
         {index}.
       </span>
-      {reg.profiles?.avatar_url ? (
-        <Image
-          src={reg.profiles.avatar_url}
-          alt=""
-          width={32}
-          height={32}
-          className="rounded-full"
-        />
-      ) : (
-        <span className="h-8 w-8 rounded-full bg-surface-overlay flex items-center justify-center text-sm">
-          {isGuest ? "👤" : "🏀"}
-        </span>
-      )}
+      <Link href={`/players/${reg.profile_id}`} className="shrink-0">
+        {reg.profiles?.avatar_url ? (
+          <Image
+            src={reg.profiles.avatar_url}
+            alt=""
+            width={32}
+            height={32}
+            className="rounded-full"
+          />
+        ) : (
+          <span className="h-8 w-8 rounded-full bg-surface-overlay flex items-center justify-center text-sm">
+            {isGuest ? "👤" : "🏀"}
+          </span>
+        )}
+      </Link>
       <div className="flex-1 min-w-0">
-        <span className="block truncate text-sm">
+        <Link href={`/players/${reg.profile_id}`} className="block truncate text-sm hover:text-court transition">
           {reg.profiles?.nickname ?? "ผู้เล่น"}
           {reg.status === "confirmed" && (
             <span className="ml-1.5 text-[10px] text-green-400 font-semibold">✅ ตัวจริง</span>
@@ -90,7 +92,7 @@ function PlayerRow({
           {refLabel && (
             <span className="text-ink-faint font-normal"> (เพื่อนของ {refLabel})</span>
           )}
-        </span>
+        </Link>
         {isGuest && reg.ref_profile_id && !reg.ref_approved && (
           <span className="text-[11px] text-amber-400">
             {iAmRef ? "รอคุณยืนยัน" : `รอ ${refLabel ?? "ผู้ชวน"} ยืนยัน`}
