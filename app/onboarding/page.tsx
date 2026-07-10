@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { OnboardingForm } from "@/features/profile/components/onboarding-form";
 
 export default async function OnboardingPage() {
@@ -16,7 +17,7 @@ export default async function OnboardingPage() {
       .select("nickname, avatar_url, onboarded")
       .eq("id", user.id)
       .single(),
-    supabase
+    createAdminClient()
       .from("groups")
       .select("id, name")
       .is("deleted_at", null)

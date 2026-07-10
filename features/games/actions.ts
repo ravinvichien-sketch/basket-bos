@@ -7,7 +7,7 @@ import {
   getGameEditorContext,
   canManageGroup,
 } from "@/features/auth/guards";
-import { pushToAllMembers } from "@/features/notifications/line";
+import { pushToGroupMembers } from "@/features/notifications/line";
 import { generateAndSendSummary } from "@/features/games/lib/send-summary";
 import { formatThaiDateTime } from "@/lib/format";
 import { gameSchema } from "./schemas";
@@ -25,12 +25,11 @@ function parseGameForm(formData: FormData) {
     location: formData.get("location"),
     starts_at: formData.get("starts_at"),
     ends_at: formData.get("ends_at"),
-    reg_opens_at: formData.get("reg_opens_at"),
-    reg_deadline: formData.get("reg_deadline"),
     fee_mode: formData.get("fee_mode") ?? "split",
     court_fee_thb: formData.get("court_fee_thb"),
     max_players: formData.get("max_players"),
     max_waitlist: formData.get("max_waitlist"),
+    players_per_team: formData.get("players_per_team"),
     notes: formData.get("notes"),
     game_duration_minutes: formData.get("game_duration_minutes"),
     target_score: formData.get("target_score"),
@@ -62,16 +61,17 @@ export async function createGame(
       location: d.location,
       starts_at: d.starts_at.toISOString(),
       ends_at: d.ends_at.toISOString(),
-      reg_opens_at: d.reg_opens_at.toISOString(),
-      reg_deadline: d.reg_deadline.toISOString(),
+      reg_opens_at: new Date().toISOString(),
+      reg_deadline: d.starts_at.toISOString(),
       fee_mode: d.fee_mode,
       court_fee_thb: d.court_fee_thb,
       max_players: d.max_players,
       max_waitlist: d.max_waitlist,
       notes: d.notes || null,
       game_duration_minutes: d.game_duration_minutes ?? 8,
+      players_per_team: d.players_per_team ?? 5,
       target_score: d.target_score || null,
-      status: formData.get("publish") === "1" ? "open" : "draft",
+      status: "open",
     })
     .select("id")
     .single();
@@ -108,14 +108,13 @@ export async function updateGame(
       location: d.location,
       starts_at: d.starts_at.toISOString(),
       ends_at: d.ends_at.toISOString(),
-      reg_opens_at: d.reg_opens_at.toISOString(),
-      reg_deadline: d.reg_deadline.toISOString(),
       fee_mode: d.fee_mode,
       court_fee_thb: d.court_fee_thb,
       max_players: d.max_players,
       max_waitlist: d.max_waitlist,
       notes: d.notes || null,
       game_duration_minutes: d.game_duration_minutes ?? 8,
+      players_per_team: d.players_per_team ?? 5,
       target_score: d.target_score || null,
     })
     .eq("id", gameId);
@@ -145,7 +144,8 @@ export async function changeGameStatus(gameId: string, next: GameStatus) {
 
   if (next === "open") {
     try {
-      await pushToAllMembers(
+      await pushToGroupMembers(
+        gameId,
         `🏀 เปิดรับสมัครแล้ว!\n"${game.title}"\n📅 ${formatThaiDateTime(game.starts_at)}\n📍 ${game.location}\nรีบลงชื่อก่อนเต็ม 20 คน!`,
         "game_open"
       );

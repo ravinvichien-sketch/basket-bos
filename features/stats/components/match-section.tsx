@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { saveMatch, deleteMatch, type ActionState } from "../actions";
+import { useActionState, useState, useTransition } from "react";
+import { saveMatch, deleteMatch, adminUpdateMatch, adminDeleteMatch, type ActionState } from "../actions";
 import { cn } from "@/lib/utils";
 
 export interface TeamOption {
@@ -26,16 +26,36 @@ export function MatchSection({
   teams,
   matches,
   isAdmin,
+  isSuperAdmin,
 }: {
   gameId: string;
   teams: TeamOption[];
   matches: MatchView[];
   isAdmin: boolean;
+  isSuperAdmin?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     saveMatch.bind(null, gameId),
     {}
   );
+
+  const [editingMatch, setEditingMatch] = useState<string | null>(null);
+  const [editTeamA, setEditTeamA] = useState("");
+  const [editTeamB, setEditTeamB] = useState("");
+  const [editScoreA, setEditScoreA] = useState("");
+  const [editScoreB, setEditScoreB] = useState("");
+
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editPending, startEdit] = useTransition();
+
+  const handleEditSubmit = async (formData: FormData) => {
+    setEditError(null);
+    startEdit(async () => {
+      await adminUpdateMatch(formData);
+      setEditingMatch(null);
+      setEditError(null);
+    });
+  };
 
   const teamName = (id: string | null, stored: string | null) =>
     stored ?? (id ? (teams.find((t) => t.id === id)?.name ?? "ทีม") : "ทีม");
@@ -82,7 +102,32 @@ export function MatchSection({
                   {teamName(m.team_b, m.team_b_name)}
                   {bWins && " 🏆"}
                 </span>
-                {isAdmin && (
+                {isSuperAdmin && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEditingMatch(m.id);
+                        setEditTeamA(m.team_a ?? "");
+                        setEditTeamB(m.team_b ?? "");
+                        setEditScoreA(String(m.score_a));
+                        setEditScoreB(String(m.score_b));
+                        setEditError(null);
+                      }}
+                      className="h-6 w-6 rounded-full bg-surface-overlay text-[11px] hover:bg-surface-overlay/70"
+                    >
+                      ✎
+                    </button>
+                    <form action={adminDeleteMatch.bind(null, m.id, gameId)}>
+                      <button
+                        aria-label="ลบแมตช์"
+                        className="h-6 w-6 rounded-full bg-red-500/10 text-red-400 text-xs hover:bg-red-500/25"
+                      >
+                        ✕
+                      </button>
+                    </form>
+                  </>
+                )}
+                {!isSuperAdmin && isAdmin && (
                   <form action={deleteMatch.bind(null, m.id, gameId)}>
                     <button
                       aria-label="ลบ"
@@ -96,6 +141,37 @@ export function MatchSection({
             );
           })}
         </ul>
+      )}
+
+      {editingMatch && isSuperAdmin && (
+        <form action={adminUpdateMatch} className="space-y-2 rounded-xl bg-amber-500/5 border border-amber-500/20 p-3">
+          <p className="text-xs font-semibold text-amber-400">✎ แก้ไขผลแข่ง</p>
+          <input type="hidden" name="match_id" value={editingMatch} />
+          <div className="flex items-center gap-2">
+            <select name="team_a" value={editTeamA} onChange={(e) => setEditTeamA(e.target.value)} required className={selectCls}>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <input name="score_a" type="number" value={editScoreA} onChange={(e) => setEditScoreA(e.target.value)} required className={scoreCls} />
+            <span className="text-ink-faint text-sm">vs</span>
+            <input name="score_b" type="number" value={editScoreB} onChange={(e) => setEditScoreB(e.target.value)} required className={scoreCls} />
+            <select name="team_b" value={editTeamB} onChange={(e) => setEditTeamB(e.target.value)} required className={selectCls}>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="flex-1 h-9 rounded-xl bg-court text-xs font-bold text-white hover:bg-court-dark transition">
+              บันทึก
+            </button>
+            <button type="button" onClick={() => setEditingMatch(null)} className="h-9 rounded-xl bg-surface-overlay px-4 text-xs hover:bg-surface-overlay/70 transition">
+              ยกเลิก
+            </button>
+          </div>
+          {editError && <p className="text-xs text-red-400">{editError}</p>}
+        </form>
       )}
 
       {teams.length >= 2 ? (

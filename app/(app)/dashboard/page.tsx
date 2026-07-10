@@ -36,7 +36,7 @@ export default async function DashboardPage() {
         .order("priority"),
       supabase
         .from("games")
-        .select("*")
+        .select("*, groups(name)")
         .in("status", ["open", "closed", "in_progress"])
         .gte("ends_at", new Date().toISOString())
         .order("starts_at", { ascending: true })
@@ -81,12 +81,29 @@ export default async function DashboardPage() {
   const seasonStats: SeasonStats | null = season
     ? {
         games_played: Number(season.games_played),
+        total_minutes: Number(season.total_minutes ?? 0),
+        total_points: Number(season.total_points ?? 0),
+        total_fgm: Number(season.total_fgm ?? 0),
+        total_fga: Number(season.total_fga ?? 0),
+        total_tpm: Number(season.total_tpm ?? 0),
+        total_tpa: Number(season.total_tpa ?? 0),
+        total_ftm: Number(season.total_ftm ?? 0),
+        total_fta: Number(season.total_fta ?? 0),
+        total_reb_off: Number(season.total_reb_off ?? 0),
+        total_reb_def: Number(season.total_reb_def ?? 0),
+        total_assists: Number(season.total_assists ?? 0),
+        total_steals: Number(season.total_steals ?? 0),
+        total_blocks: Number(season.total_blocks ?? 0),
+        total_turnovers: Number(season.total_turnovers ?? 0),
+        total_fouls: Number(season.total_fouls ?? 0),
+        total_plus_minus: Number(season.total_plus_minus ?? 0),
         ppg: Number(season.ppg ?? 0),
         rpg: Number(season.rpg ?? 0),
         apg: Number(season.apg ?? 0),
         spg: Number(season.spg ?? 0),
         bpg: Number(season.bpg ?? 0),
         fg_pct: season.fg_pct != null ? Number(season.fg_pct) : null,
+        tp_pct: season.tp_pct != null ? Number(season.tp_pct) : null,
         mvp_count: Number(season.mvp_count ?? 0),
       }
     : null;
@@ -154,6 +171,7 @@ export default async function DashboardPage() {
               key={game.id}
               game={game as Game}
               confirmedCount={counts.get(game.id)}
+              groupName={(game as any).groups?.name ?? null}
             />
           ))
         ) : (

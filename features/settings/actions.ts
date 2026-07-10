@@ -84,6 +84,34 @@ export async function updateAvatar(
   revalidatePath("/", "layout");
   return {};
 }
+export async function updateAiSettings(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState & { provider?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบใหม่" };
+
+  const provider = formData.get("provider") as string;
+  const apiKey = (formData.get("apiKey") as string)?.trim() || null;
+
+  if (!["default", "gemini", "openai", "anthropic"].includes(provider)) {
+    return { error: "ไม่รองรับผู้ให้บริการนี้" };
+  }
+
+  // upsert
+  const { error } = await supabase.from("user_ai_settings").upsert(
+    { profile_id: user.id, provider, api_key: apiKey, updated_at: new Date().toISOString() },
+    { onConflict: "profile_id" }
+  );
+  if (error) return { error: "บันทึกไม่สำเร็จ" };
+
+  revalidatePath("/", "layout");
+  return { provider };
+}
+
 export async function setLanguage(lang: "th" | "en") {
   const supabase = await createClient();
   const {

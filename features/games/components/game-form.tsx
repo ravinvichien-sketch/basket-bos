@@ -12,12 +12,11 @@ export interface GameFormDefaults {
   location?: string;
   starts_at?: string; // datetime-local strings (Bangkok)
   ends_at?: string;
-  reg_opens_at?: string;
-  reg_deadline?: string;
   fee_mode?: "split" | "fixed";
   court_fee_thb?: number;
   max_players?: number;
   max_waitlist?: number;
+  players_per_team?: number;
   notes?: string;
   game_duration_minutes?: number;
   target_score?: number;
@@ -28,13 +27,11 @@ export function GameForm({
   defaults = {},
   groups,
   submitLabel,
-  showPublishToggle = false,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   defaults?: GameFormDefaults;
   groups: { id: string; name: string }[];
   submitLabel: string;
-  showPublishToggle?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     action,
@@ -112,29 +109,6 @@ export function GameForm({
             name="ends_at"
             type="datetime-local"
             defaultValue={defaults.ends_at}
-            required
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="reg_opens_at">เปิดรับสมัคร *</Label>
-          <Input
-            id="reg_opens_at"
-            name="reg_opens_at"
-            type="datetime-local"
-            defaultValue={defaults.reg_opens_at}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="reg_deadline">ปิดรับสมัคร *</Label>
-          <Input
-            id="reg_deadline"
-            name="reg_deadline"
-            type="datetime-local"
-            defaultValue={defaults.reg_deadline}
             required
           />
         </div>
@@ -238,7 +212,23 @@ export function GameForm({
           <p className="mt-1 text-[11px] text-ink-faint">แต่ละเกมส์ย่อยกี่นาที (default 8)</p>
         </div>
         <div>
-          <Label htmlFor="target_score">แต้มเป้าหมายต่อเกมส์</Label>
+          <Label htmlFor="players_per_team">ผู้เล่นต่อทีม *</Label>
+          <Input
+            id="players_per_team"
+            name="players_per_team"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={20}
+            defaultValue={defaults.players_per_team ?? 5}
+            required
+          />
+          <p className="mt-1 text-[11px] text-ink-faint">เช่น 3×3=3, 5×5=5, 1×1=1</p>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="target_score">แต้มเป้าหมายต่อเกมส์</Label>
           <Input
             id="target_score"
             name="target_score"
@@ -251,7 +241,6 @@ export function GameForm({
           />
           <p className="mt-1 text-[11px] text-ink-faint">ถ้าใส่ — ถึงแต้มนี้ก่อน เวลาหยุดอัตโนมัติ</p>
         </div>
-      </div>
 
       <div>
         <Label htmlFor="notes">โน้ตเพิ่มเติม</Label>
@@ -264,22 +253,6 @@ export function GameForm({
           className="w-full rounded-xl bg-surface-overlay border border-white/10 px-4 py-3 text-base placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-court"
         />
       </div>
-
-      {showPublishToggle && (
-        <label className="flex items-center gap-3 rounded-xl bg-surface-overlay border border-white/10 px-4 py-3 cursor-pointer">
-          <input
-            type="checkbox"
-            name="publish"
-            value="1"
-            defaultChecked
-            className="h-5 w-5 accent-court"
-          />
-          <span className="text-sm">
-            เปิดรับสมัครทันที{" "}
-            <span className="text-ink-faint">(ไม่ติ๊ก = เก็บเป็นฉบับร่าง)</span>
-          </span>
-        </label>
-      )}
 
       {state.error && (
         <p className="rounded-xl bg-red-500/10 text-red-400 text-sm px-4 py-3">

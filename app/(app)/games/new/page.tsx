@@ -10,7 +10,7 @@ export default async function NewGamePage() {
   // ก๊วนที่ผู้ใช้สร้างนัดได้: แอดมินเต็มระบบ = ทุกก๊วน / แอดมินก๊วน = เฉพาะก๊วนตัวเอง
   const { data: allGroups } = await supabase
     .from("groups")
-    .select("id, name")
+    .select("id, name, play_start_time, play_end_time")
     .is("deleted_at", null)
     .order("name");
 
@@ -30,12 +30,19 @@ export default async function NewGamePage() {
   // ไม่ใช่แอดมินของก๊วนไหนเลย → ไม่มีสิทธิ์สร้างนัด
   if (groups.length === 0) redirect("/games");
 
-  // Sensible defaults: next occurrence at 19:00–21:00, deadline = start time
+  // หาเวลาประจำของก๊วนแรก (default)
+  const g = groups[0] as { id: string; name: string; play_start_time: string | null; play_end_time: string | null } | undefined;
+  const defaultStartHour = parseInt(g?.play_start_time?.slice(0, 2) ?? "19", 10);
+  const defaultStartMin = parseInt(g?.play_start_time?.slice(3, 5) ?? "0", 10);
+  const defaultEndHour = parseInt(g?.play_end_time?.slice(0, 2) ?? "21", 10);
+  const defaultEndMin = parseInt(g?.play_end_time?.slice(3, 5) ?? "0", 10);
+
   const start = new Date();
   start.setDate(start.getDate() + 2);
-  start.setHours(19, 0, 0, 0);
-  const end = new Date(start);
-  end.setHours(21, 0, 0, 0);
+  start.setHours(defaultStartHour, defaultStartMin, 0, 0);
+  const end = new Date();
+  end.setDate(end.getDate() + 2);
+  end.setHours(defaultEndHour, defaultEndMin, 0, 0);
 
   return (
     <main className="px-5 py-8 space-y-6">
@@ -44,12 +51,9 @@ export default async function NewGamePage() {
         action={createGame}
         groups={groups ?? []}
         submitLabel="สร้าง Session 🏀"
-        showPublishToggle
         defaults={{
           starts_at: toBangkokInput(start.toISOString()),
           ends_at: toBangkokInput(end.toISOString()),
-          reg_opens_at: toBangkokInput(new Date().toISOString()),
-          reg_deadline: toBangkokInput(start.toISOString()),
         }}
       />
     </main>

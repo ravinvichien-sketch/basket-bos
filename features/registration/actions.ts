@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { pushToProfiles, pushToGroup } from "@/features/notifications/line";
 
 /** ส่งรายชื่อล่าสุดเข้ากลุ่ม LINE ของก๊วน (ถ้าผูกกลุ่มไว้แล้ว) */
-async function pushRosterToGroup(gameId: string, headline: string) {
+export async function pushRosterToGroup(gameId: string, headline: string) {
   try {
     const supabase = await createClient();
     const [{ data: game }, { data: regs }] = await Promise.all([
@@ -18,15 +18,20 @@ async function pushRosterToGroup(gameId: string, headline: string) {
         .single(),
       supabase
         .from("registrations")
-        .select("status, profiles!profile_id(nickname)")
+        .select("status, profiles!profile_id(nickname, is_guest), ref:profiles!ref_profile_id(nickname)")
         .eq("game_id", gameId)
         .in("status", ["confirmed", "waitlisted", "tentative"])
         .order("registered_at", { ascending: true }),
     ]);
     if (!game) return;
 
-    const nick = (r: { profiles: unknown }) =>
-      (r.profiles as { nickname?: string } | null)?.nickname ?? "ผู้เล่น";
+    const nick = (r: { profiles: unknown; ref?: unknown }) => {
+      const p = r.profiles as { nickname?: string; is_guest?: boolean } | null;
+      const ref = r.ref as { nickname?: string } | null;
+      const base = p?.nickname ?? "ผู้เล่น";
+      const suffix = p?.is_guest && ref?.nickname ? ` (แขกของ ${ref.nickname})` : "";
+      return `${base}${suffix}`;
+    };
     const confirmed = (regs ?? []).filter((r) => r.status === "confirmed");
     const tentative = (regs ?? []).filter((r) => r.status === "tentative");
     const waitlist = (regs ?? []).filter((r) => r.status === "waitlisted");
@@ -117,27 +122,51 @@ function revalidateGame(gameId: string) {
   revalidatePath("/dashboard");
 }
 
+async function requireGroupMember(gameId: string, userId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data: game } = await supabase
+    .from("games")
+    .select("group_id")
+    .eq("id", gameId)
+    .single();
+
+  if (game?.group_id) {
+    const { data: member } = await supabase
+      .from("group_members")
+      .select("profile_id")
+      .eq("group_id", game.group_id)
+      .eq("profile_id", userId)
+      .maybeSingle();
+
+    if (!member) {
+      return `คุณยังไม่ได้เป็นสมาชิกก๊วนนี้ — ไปที่หน้าก๊วนแล้วกด "ขอเข้าก๊วน" ก่อน`;
+    }
+  }
+  return null;
+}
+
 export async function joinGame(
   gameId: string,
   _prev: ActionState,
   _formData: FormData
 ): Promise<ActionState> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบใหม่" };
+
+  const groupErr = await requireGroupMember(gameId, user.id);
+  if (groupErr) return { error: groupErr };
+
   const { error } = await supabase.rpc("register_player", {
     p_game_id: gameId,
   });
   if (error) return { error: mapError(error.message) };
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: me } = user
-    ? await supabase
-        .from("profiles")
-        .select("nickname")
-        .eq("id", user.id)
-        .single()
-    : { data: null };
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("nickname")
+    .eq("id", user.id)
+    .single();
   await pushRosterToGroup(gameId, `➕ ${me?.nickname ?? "สมาชิก"} ลงชื่อแล้ว`);
 
   revalidateGame(gameId);
@@ -168,14 +197,14 @@ export async function registerMaybe(
 ): Promise<ActionState> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "กรุณาเข้าสู่ระบบ" };
+  if (!user) return { error: "กรุณาเข้าสู่ระบบใหม่" };
 
-  const { error } = await supabase
-    .from("registrations")
-    .upsert(
-      { game_id: gameId, profile_id: user.id, status: "tentative" },
-      { onConflict: "game_id,profile_id" }
-    );
+  const groupErr = await requireGroupMember(gameId, user.id);
+  if (groupErr) return { error: groupErr };
+
+  const { error } = await supabase.rpc("register_tentative", {
+    p_game_id: gameId,
+  });
   if (error) return { error: mapError(error.message) };
 
   revalidateGame(gameId);
@@ -189,6 +218,12 @@ export async function confirmFromMaybe(
   _formData: FormData
 ): Promise<ActionState> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบใหม่" };
+
+  const groupErr = await requireGroupMember(gameId, user.id);
+  if (groupErr) return { error: groupErr };
+
   const { error } = await supabase.rpc("register_player", {
     p_game_id: gameId,
   });

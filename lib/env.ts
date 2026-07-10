@@ -7,7 +7,6 @@ const required = [
   "LINE_CHANNEL_ID",
   "LINE_CHANNEL_SECRET",
   "AUTH_PASSWORD_SECRET",
-  "PROMPTPAY_ID",
 ] as const;
 
 type RequiredKey = (typeof required)[number];

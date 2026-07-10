@@ -47,6 +47,15 @@ const th = {
   "settings.langEn": "English",
   "settings.nameRequired": "กรุณาใส่ชื่อบนเสื้อ",
 
+  // AI settings
+  "settings.ai_title": "AI วิเคราะห์ประสิทธิภาพ",
+  "settings.ai_desc": "เลือกผู้ให้บริการ AI สำหรับวิเคราะห์สถิติ ค่าเริ่มต้นใช้ Groq (Llama 3 ฟรี) แค่สมัคร https://console.groq.com ไม่ต้องใช้บัตรเครดิต",
+  "settings.ai_provider": "ผู้ให้บริการ AI",
+  "settings.ai_api_key": "API Key (ถ้ามี)",
+  "settings.ai_optional": "ไม่ต้องใส่ถ้าใช้ค่าเริ่มต้น",
+  "settings.ai_key_placeholder": "sk-... หรือ AIza...",
+  "settings.ai_saved": "บันทึกการตั้งค่า AI แล้ว",
+
   // Onboarding
   "onboard.jerseyName": "ชื่อบนเสื้อ (ที่โชว์ในแอป)",
   "onboard.jerseyHint": "ตั้งชื่อที่อยากให้คนอื่นเห็น เปลี่ยนได้ตลอดในหน้าตั้งค่า",
@@ -96,6 +105,14 @@ const en: Dict = {
   "settings.langTh": "ไทย",
   "settings.langEn": "English",
   "settings.nameRequired": "Please enter a jersey name",
+
+  "settings.ai_title": "AI Performance Analysis",
+  "settings.ai_desc": "Choose an AI provider for stats analysis. Default uses Groq (Llama 3, free) — sign up at https://console.groq.com, no credit card needed",
+  "settings.ai_provider": "AI Provider",
+  "settings.ai_api_key": "API Key (if any)",
+  "settings.ai_optional": "leave empty to use default",
+  "settings.ai_key_placeholder": "sk-... or AIza...",
+  "settings.ai_saved": "AI settings saved",
 
   "onboard.jerseyName": "Jersey name (shown in app)",
   "onboard.jerseyHint": "Pick the name others will see — change it anytime in settings",

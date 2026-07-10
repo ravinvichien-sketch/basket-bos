@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getGameManagerContext } from "@/features/auth/guards";
 import { pushToProfiles } from "@/features/notifications/line";
@@ -13,6 +14,28 @@ function revalidatePayments(gameId: string) {
   revalidatePath(`/games/${gameId}/payments`);
   revalidatePath(`/games/${gameId}`);
   revalidatePath("/dashboard");
+}
+
+/** Player: upload slip image using admin client (bypasses RLS), returns the storage path. */
+export async function uploadSlip(dataUrl: string): Promise<{ path: string } | { error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "กรุณาเข้าสู่ระบบใหม่" };
+
+  const base64 = dataUrl.split(",")[1];
+  if (!base64) return { error: "ข้อมูลรูปไม่ถูกต้อง" };
+  const buffer = Buffer.from(base64, "base64");
+  const ext = dataUrl.startsWith("data:image/png") ? "png" : "jpg";
+  const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+
+  const admin = createAdminClient();
+  const { error } = await admin.storage.from("slips").upload(path, buffer, {
+    contentType: `image/${ext}`,
+    upsert: false,
+  });
+
+  if (error) return { error: "อัพโหลดสลิปไม่สำเร็จ กรุณาลองใหม่" };
+  return { path };
 }
 
 /** Admin/คนเก็บเงิน: create a payment row for every confirmed player (share = ceil(fee / n)). */
@@ -155,6 +178,62 @@ export async function revertPayment(paymentId: string, gameId: string) {
   revalidatePayments(gameId);
 }
 
+/** Admin/คนเก็บเงิน: ลบยอด unpaid/pending ทั้งหมดของ Session นี้ แล้วสร้างยอดใหม่ตามค่าสนามที่แก้ไข */
+export async function recalculatePaymentAmounts(
+  gameId: string,
+  _prev: ActionState,
+  _formData: FormData
+): Promise<ActionState> {
+  const { supabase, canManage } = await getGameManagerContext(gameId);
+  if (!canManage) return { error: "เฉพาะแอดมินหรือคนเก็บเงินเท่านั้น" };
+
+  const [{ data: game }, { data: confirmed }] = await Promise.all([
+    supabase
+      .from("games")
+      .select("court_fee_thb, fee_mode")
+      .eq("id", gameId)
+      .single(),
+    supabase
+      .from("registrations")
+      .select("profile_id")
+      .eq("game_id", gameId)
+      .eq("status", "confirmed"),
+  ]);
+
+  if (!game) return { error: "ไม่พบ Session" };
+  if (game.court_fee_thb <= 0) return { error: "Session นี้ไม่มีค่าสนาม" };
+  if (!confirmed || confirmed.length === 0) {
+    return { error: "ยังไม่มีผู้เล่นตัวจริง" };
+  }
+
+  // ลบยอด unpaid/pending ออกก่อน
+  await supabase
+    .from("payments")
+    .delete()
+    .eq("game_id", gameId)
+    .in("status", ["unpaid", "pending"]);
+
+  // สร้างยอดใหม่ด้วยจำนวนที่คำนวณใหม่
+  const share =
+    game.fee_mode === "fixed"
+      ? game.court_fee_thb
+      : Math.ceil(game.court_fee_thb / confirmed.length);
+
+  const { error } = await supabase.from("payments").upsert(
+    confirmed.map((r) => ({
+      game_id: gameId,
+      profile_id: r.profile_id,
+      amount_thb: share,
+    })),
+    { onConflict: "game_id,profile_id", ignoreDuplicates: false }
+  );
+
+  if (error) return { error: "ปรับยอดไม่สำเร็จ" };
+
+  revalidatePayments(gameId);
+  return {};
+}
+
 /** แอดมิน/แอดมินก๊วน: แต่งตั้ง/เปลี่ยน "คนเก็บเงิน" ประจำ Session (ปล่อยว่าง = ยกเลิก).
  *  สิทธิ์ถูกบังคับที่ RPC (security definer) — แอดมินก๊วนแก้ได้เฉพาะ Session ในก๊วนตัวเอง
  *  และแก้ได้แค่ฟิลด์คนเก็บเงินเท่านั้น. */
@@ -212,6 +291,10 @@ export async function updatePayoutInfo(
   const promptpay = String(formData.get("promptpay_id") ?? "").trim();
   const bankName = String(formData.get("bank_name") ?? "").trim();
   const bankNo = String(formData.get("bank_account_no") ?? "").trim();
+
+  if (!promptpay && !bankNo) {
+    return { error: "กรุณากรอก PromptPay หรือเลขบัญชี อย่างใดอย่างหนึ่ง" };
+  }
 
   // ตรวจ PromptPay เบื้องต้น: เบอร์ 10 หลัก หรือเลขบัตร ปชช. 13 หลัก
   if (promptpay) {

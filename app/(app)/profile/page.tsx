@@ -12,6 +12,7 @@ import {
   DreamTeamSection,
   type DreamTeamView,
 } from "@/features/profile/components/dream-teams";
+import { computeOvr, tierOf, type SeasonStats } from "@/features/stats/lib/ratings";
 
 const HAND_LABELS: Record<string, Record<string, string>> = {
   th: { left: "ซ้าย", right: "ขวา", both: "สองมือ" },
@@ -25,7 +26,7 @@ export default async function ProfilePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: profile }, { data: positions }, { data: myTeams }, { data: candidateProfiles }, { data: allGroups }] = await Promise.all([
+  const [{ data: profile }, { data: positions }, { data: myTeams }, { data: candidateProfiles }, { data: allGroups }, { data: season }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase
       .from("player_positions")
@@ -44,6 +45,11 @@ export default async function ProfilePage() {
       .select("id, name")
       .is("deleted_at", null)
       .order("name"),
+    supabase
+      .from("v_player_season_stats")
+      .select("*")
+      .eq("profile_id", user.id)
+      .maybeSingle(),
   ]);
 
   // Dream teams
@@ -103,6 +109,38 @@ export default async function ProfilePage() {
     [t(lang, "profile.positions"), positions?.map((p) => p.position).join(", ") || "–"],
   ];
 
+  const stats: SeasonStats | null = season
+    ? {
+        games_played: Number(season.games_played),
+        total_minutes: Number(season.total_minutes ?? 0),
+        total_points: Number(season.total_points ?? 0),
+        total_fgm: Number(season.total_fgm ?? 0),
+        total_fga: Number(season.total_fga ?? 0),
+        total_tpm: Number(season.total_tpm ?? 0),
+        total_tpa: Number(season.total_tpa ?? 0),
+        total_ftm: Number(season.total_ftm ?? 0),
+        total_fta: Number(season.total_fta ?? 0),
+        total_reb_off: Number(season.total_reb_off ?? 0),
+        total_reb_def: Number(season.total_reb_def ?? 0),
+        total_assists: Number(season.total_assists ?? 0),
+        total_steals: Number(season.total_steals ?? 0),
+        total_blocks: Number(season.total_blocks ?? 0),
+        total_turnovers: Number(season.total_turnovers ?? 0),
+        total_fouls: Number(season.total_fouls ?? 0),
+        total_plus_minus: Number(season.total_plus_minus ?? 0),
+        ppg: Number(season.ppg ?? 0),
+        rpg: Number(season.rpg ?? 0),
+        apg: Number(season.apg ?? 0),
+        spg: Number(season.spg ?? 0),
+        bpg: Number(season.bpg ?? 0),
+        fg_pct: season.fg_pct != null ? Number(season.fg_pct) : null,
+        tp_pct: season.tp_pct != null ? Number(season.tp_pct) : null,
+        mvp_count: Number(season.mvp_count ?? 0),
+      }
+    : null;
+  const ovr = computeOvr(stats);
+  const tier = tierOf(ovr);
+
   return (
     <main className="px-5 py-8 space-y-6">
       <header className="flex items-center gap-4">
@@ -142,6 +180,31 @@ export default async function ProfilePage() {
       >
         🃏 {t(lang, "profile.myCard")}
       </Link>
+
+      {stats && stats.games_played > 0 && (
+        <Card>
+          <CardTitle>
+            📊 ฤดูกาลนี้ — {stats.games_played} เกม
+            <span className="ml-2 text-xs font-normal text-ink-dim">
+              OVR {ovr} · {tier.label} {tier.key === "bronze" ? "🥉" : tier.key === "silver" ? "🥈" : tier.key === "gold" ? "🥇" : "💎"}
+            </span>
+          </CardTitle>
+          <div className="mt-3 grid grid-cols-5 gap-2 text-center">
+            {([
+              ["แต้ม", stats.ppg.toFixed(1)],
+              ["รีบาวด์", stats.rpg.toFixed(1)],
+              ["แอสซิสต์", stats.apg.toFixed(1)],
+              ["บล็อก", stats.bpg.toFixed(1)],
+              ["FG%", stats.fg_pct != null ? `${stats.fg_pct}%` : "−"],
+            ] as const).map(([label, value]) => (
+              <div key={label}>
+                <div className="text-lg font-bold tabular-nums">{value}</div>
+                <div className="text-[10px] text-ink-dim">{label}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <CardTitle>{t(lang, "profile.cardPhoto")}</CardTitle>

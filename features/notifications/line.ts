@@ -58,52 +58,53 @@ export async function pushImageToGroup(
 }
 
 /** Push a message into the LINE group chat that a game's group is linked to. */
-export async function pushToGroup(text: string, gameId?: string): Promise<void> {
+export async function pushToGroup(text: string, gameId: string): Promise<void> {
   if (!lineConfigured()) return;
   const admin = createAdminClient();
-  let groupId: string | undefined;
 
-  if (gameId) {
-    // Look up the game's group to find its LINE Group ID
-    const { data: game } = await admin
-      .from("games")
-      .select("group_id")
-      .eq("id", gameId)
-      .single();
-    if (game?.group_id) {
-      const { data: grp } = await admin
-        .from("groups")
-        .select("line_group_id")
-        .eq("id", game.group_id)
-        .single();
-      groupId = grp?.line_group_id ?? undefined;
-    }
-  }
+  const { data: game } = await admin
+    .from("games")
+    .select("group_id")
+    .eq("id", gameId)
+    .single();
+  if (!game?.group_id) return;
 
-  // Fallback: global app_settings (legacy)
-  if (!groupId) {
-    const { data } = await admin
-      .from("app_settings")
-      .select("value")
-      .eq("key", "line_group_id")
-      .maybeSingle();
-    groupId = (data?.value as { id?: string } | null)?.id;
-  }
+  const { data: grp } = await admin
+    .from("groups")
+    .select("line_group_id")
+    .eq("id", game.group_id)
+    .single();
+  const lineGroupId = grp?.line_group_id;
+  if (!lineGroupId) return;
 
-  if (!groupId) return;
-  await pushLineText(groupId, text);
+  await pushLineText(lineGroupId, text);
 }
 
-/** Push to every onboarded member of the group. */
-export async function pushToAllMembers(
+/** Push a DM to every member of the game's group who has LINE linked. */
+export async function pushToGroupMembers(
+  gameId: string,
   text: string,
   type: string
 ): Promise<void> {
   if (!lineConfigured()) return;
   const admin = createAdminClient();
-  const { data: profiles } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("onboarded", true);
-  await pushToProfiles((profiles ?? []).map((p) => p.id), text, type);
+
+  const { data: game } = await admin
+    .from("games")
+    .select("group_id")
+    .eq("id", gameId)
+    .single();
+  if (!game?.group_id) return;
+
+  const { data: members } = await admin
+    .from("group_members")
+    .select("profile_id")
+    .eq("group_id", game.group_id);
+  if (!members || members.length === 0) return;
+
+  await pushToProfiles(
+    members.map((m) => m.profile_id),
+    text,
+    type
+  );
 }

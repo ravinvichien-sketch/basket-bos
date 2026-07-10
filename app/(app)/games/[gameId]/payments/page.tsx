@@ -12,6 +12,7 @@ import {
 } from "@/features/payments/actions";
 import { NotifyPaidForm } from "@/features/payments/components/notify-paid-form";
 import { CreateRequestsButton } from "@/features/payments/components/create-requests-button";
+import { RecalculateButton } from "@/features/payments/components/recalculate-button";
 import { RealtimePayments } from "@/features/payments/components/realtime-payments";
 import { CollectorSelect } from "@/features/payments/components/collector-select";
 import { PayoutForm } from "@/features/payments/components/payout-form";
@@ -98,8 +99,8 @@ export default async function PaymentsPage({
     nickname:
       (r.profiles as { nickname?: string } | null)?.nickname ?? "ผู้เล่น",
   }));
-  // ปลายทางรับเงิน: PromptPay ของคนเก็บเงิน > ค่ากลางของแอป
-  const payoutTarget = collector?.promptpay_id ?? process.env.PROMPTPAY_ID ?? null;
+  // ปลายทางรับเงิน: ต้องมีคนเก็บเงินที่ใส่ PromptPay ไว้เท่านั้น
+  const payoutTarget = collector?.promptpay_id ?? null;
   // ผู้จัดการเรื่องเงิน = แอดมิน หรือ คนเก็บเงินที่ถูกแต่งตั้ง
   const canManage = isAdmin || iAmCollector;
 
@@ -114,15 +115,15 @@ export default async function PaymentsPage({
     .reduce((sum, p) => sum + p.amount_thb, 0);
 
   // QR for the current player (only while there is something to pay)
-  let qrSvg: string | null = null;
+  let qrDataUrl: string | null = null;
   let promptPayMissing = false;
   if (myPayment && (myPayment.status === "unpaid" || myPayment.status === "pending")) {
     if (payoutTarget) {
       const payload = buildPromptPayPayload(payoutTarget, myPayment.amount_thb);
-      qrSvg = await QRCode.toString(payload, {
-        type: "svg",
+      qrDataUrl = await QRCode.toDataURL(payload, {
+        type: "image/png",
         margin: 1,
-        width: 220,
+        width: 512,
         color: { dark: "#0B0F14", light: "#FFFFFF" },
       });
     } else {
@@ -171,11 +172,16 @@ export default async function PaymentsPage({
             <div className="mt-2 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">{collector.nickname}</p>
-                {collector.promptpay_id ? (
+                {collector.promptpay_id || collector.bank_account_no ? (
                   <p className="text-xs text-ink-faint">
-                    PromptPay {collector.promptpay_id}
+                    {collector.promptpay_id
+                      ? `PromptPay ${collector.promptpay_id}`
+                      : ""}
+                    {collector.promptpay_id && collector.bank_account_no
+                      ? " · "
+                      : ""}
                     {collector.bank_account_no
-                      ? ` · ${collector.bank_name ?? "บัญชี"} ${collector.bank_account_no}`
+                      ? `${collector.bank_name ?? "บัญชี"} ${collector.bank_account_no}`
                       : ""}
                   </p>
                 ) : (
@@ -249,6 +255,9 @@ export default async function PaymentsPage({
                 </button>
               </form>
             )}
+          {canManage && payments.length > 0 && (
+            <RecalculateButton gameId={gameId} />
+          )}
         </Card>
       )}
 
@@ -304,7 +313,7 @@ export default async function PaymentsPage({
             </p>
           )}
 
-          {qrSvg && (
+          {qrDataUrl && (
             <div className="mt-4 space-y-4">
               {collector && (
                 <p className="text-center text-xs text-ink-dim">
@@ -312,7 +321,7 @@ export default async function PaymentsPage({
                 </p>
               )}
               <div className="mx-auto w-fit rounded-xl bg-white p-3">
-                <div dangerouslySetInnerHTML={{ __html: qrSvg }} />
+                <img src={qrDataUrl} alt="PromptPay QR" className="w-56 h-56" />
               </div>
               <p className="text-center text-xs text-ink-faint">
                 สแกนด้วยแอปธนาคาร — ยอด {formatBaht(myPayment.amount_thb)}{" "}
@@ -323,7 +332,7 @@ export default async function PaymentsPage({
                 bankName={collector?.bank_name ?? null}
                 bankNo={collector?.bank_account_no ?? null}
                 amount={myPayment.amount_thb}
-                qrSvg={qrSvg}
+                qrDataUrl={qrDataUrl}
                 payeeName={collector?.nickname ?? "คนเก็บเงิน"}
               />
               {myPayment.status === "unpaid" && (

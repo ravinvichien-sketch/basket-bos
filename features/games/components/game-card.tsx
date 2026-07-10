@@ -1,17 +1,21 @@
 import Link from "next/link";
 import type { Game, GameStatus } from "@/types/database";
 import { GAME_STATUS_LABELS, GAME_STATUS_STYLES } from "../constants";
-import { formatThaiDateTime, formatTimeRange, formatBaht } from "@/lib/format";
+import { formatThaiDateTime, formatBaht } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function GameCard({
   game,
   confirmedCount,
+  groupName,
 }: {
   game: Game;
   confirmedCount?: number;
+  groupName?: string | null;
 }) {
   const status = game.status as GameStatus;
+
+  const dateStr = formatThaiDateTime(game.starts_at);
 
   return (
     <Link
@@ -20,12 +24,14 @@ export function GameCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-bold truncate">{game.title}</h3>
-          <p className="text-sm text-ink-dim mt-0.5">
-            {formatThaiDateTime(game.starts_at)} ·{" "}
-            {formatTimeRange(game.starts_at, game.ends_at)}
+          {groupName && (
+            <p className="text-xs text-court font-semibold mb-0.5">
+              🎯 {groupName}
+            </p>
+          )}
+          <p className="text-sm text-ink-dim">
+            📅 {dateStr}  {game.location ? `| ${game.location}` : ""}
           </p>
-          <p className="text-sm text-ink-faint truncate">📍 {game.location}</p>
         </div>
         <span
           className={cn(

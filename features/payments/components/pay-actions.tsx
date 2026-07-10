@@ -7,14 +7,14 @@ export function PayActions({
   bankName,
   bankNo,
   amount,
-  qrSvg,
+  qrDataUrl,
   payeeName,
 }: {
   promptpayId: string | null;
   bankName: string | null;
   bankNo: string | null;
   amount: number;
-  qrSvg: string | null;
+  qrDataUrl: string | null;
   payeeName: string;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -30,32 +30,42 @@ export function PayActions({
     }
   };
 
-  const svgToPngBlob = (svg: string): Promise<Blob | null> =>
+  const dataUrlToBlob = (dataUrl: string): Promise<Blob | null> =>
     new Promise((resolve) => {
       const img = new window.Image();
-      const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-      const url = URL.createObjectURL(svgBlob);
       img.onload = () => {
-        const size = 512;
         const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
+        canvas.width = img.width;
+        canvas.height = img.height;
         const ctx = canvas.getContext("2d");
         if (!ctx) return resolve(null);
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, size, size);
-        ctx.drawImage(img, 0, 0, size, size);
-        URL.revokeObjectURL(url);
+        ctx.drawImage(img, 0, 0);
         canvas.toBlob((b) => resolve(b), "image/png");
       };
       img.onerror = () => resolve(null);
-      img.src = url;
+      img.src = dataUrl;
     });
 
+  const copyQrImage = async () => {
+    if (!qrDataUrl) return;
+    const blob = await dataUrlToBlob(qrDataUrl);
+    if (!blob) return;
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+      setCopied("qr");
+      setTimeout(() => setCopied(null), 2000);
+    } catch {
+      // fallback: try share
+      await shareOrSaveQr();
+    }
+  };
+
   const shareOrSaveQr = async () => {
-    if (!qrSvg) return;
+    if (!qrDataUrl) return;
     setQrSaved(false);
-    const blob = await svgToPngBlob(qrSvg);
+    const blob = await dataUrlToBlob(qrDataUrl);
     if (!blob) return;
     const file = new File([blob], `promptpay-${amount}.png`, {
       type: "image/png",
@@ -124,16 +134,25 @@ export function PayActions({
         </button>
       )}
 
-      {qrSvg && (
+      {qrDataUrl && (
         <div className="space-y-1.5">
+          <button
+            onClick={copyQrImage}
+            className="flex h-11 w-full items-center justify-between rounded-xl bg-surface-overlay px-4 text-sm font-semibold hover:bg-surface-overlay/70 transition"
+          >
+            <span className="text-ink-dim">คัดลอกรูป QR</span>
+            <span className="tabular-nums">
+              {copied === "qr" ? "✅ คัดลอกแล้ว" : "📋"}
+            </span>
+          </button>
           <button
             onClick={shareOrSaveQr}
             className="h-11 w-full rounded-xl bg-court text-sm font-semibold text-white hover:bg-court-dark transition"
           >
-            {qrSaved ? "✅ บันทึก QR แล้ว" : "💾 บันทึก QR (หรือกดค้างที่ QR เพื่อบันทึก)"}
+            {qrSaved ? "✅ บันทึก QR แล้ว" : "💾 บันทึก / แชร์ QR"}
           </button>
           <p className="text-center text-[11px] text-ink-faint">
-            บนมือถือกดค้างที่ QR → เลือก &ldquo;บันทึกรูป&rdquo; — หรือกดปุ่มด้านบนเพื่อแชร์เข้าแอปธนาคาร
+            บนมือถือกดค้างที่ QR → เลือก &ldquo;บันทึกรูป&rdquo; — หรือกดปุ่มคัดลอกหรือแชร์
           </p>
         </div>
       )}

@@ -3,14 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { tryGetUser } from "@/features/auth/guards";
 import { createClient } from "@/lib/supabase/server";
-import { changeGameStatus } from "@/features/games/actions";
 import { adminRemovePlayer } from "@/features/registration/actions";
-import {
-  GAME_STATUS_LABELS,
-  GAME_STATUS_STYLES,
-  STATUS_TRANSITIONS,
-  TRANSITION_LABELS,
-} from "@/features/games/constants";
+import { changeGameStatus } from "@/features/games/actions";
+import { GAME_STATUS_LABELS, GAME_STATUS_STYLES, STATUS_TRANSITIONS, TRANSITION_LABELS } from "@/features/games/constants";
 import { JoinControls } from "@/features/registration/components/join-controls";
 import { RealtimeRegistrations } from "@/features/registration/components/realtime-registrations";
 import { AdminAddForm } from "@/features/registration/components/admin-add-form";
@@ -285,10 +280,7 @@ export default async function GameDetailPage({
 
   const status = game.status as GameStatus;
   const now = new Date();
-  const joinOpen =
-    status === "open" &&
-    now >= new Date(game.reg_opens_at) &&
-    now <= new Date(game.reg_deadline);
+  const joinOpen = status === "open" && now <= new Date(game.starts_at);
   const cancelAllowed = now <= new Date(game.reg_deadline);
   const isFull = confirmed.length >= game.max_players;
   const isFixedFee = game.fee_mode === "fixed";
@@ -376,7 +368,12 @@ export default async function GameDetailPage({
             feePerPlayer ? `~${formatBaht(feePerPlayer)}` : "รอคนลงชื่อ",
           ],
         ] as [string, string][])),
-    ["ปิดรับสมัคร", formatThaiDateTime(game.reg_deadline)],
+    ...(game.game_duration_minutes
+      ? ([["เวลา/เกมส์", `${game.game_duration_minutes} นาที`]] as [string, string][])
+      : []),
+    ...(game.players_per_team
+      ? ([["รูปแบบ", `${game.players_per_team}×${game.players_per_team}`]] as [string, string][])
+      : []),
     ...(game.notes
       ? ([["หมายเหตุ", game.notes]] as [string, string][])
       : []),
@@ -577,20 +574,12 @@ export default async function GameDetailPage({
               </div>
             </details>
           )}
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {STATUS_TRANSITIONS[status].map((next) => (
-              <form
-                key={next}
-                action={changeGameStatus.bind(null, gameId, next)}
-              >
+          <div className="mt-3 flex flex-col gap-2">
+            {STATUS_TRANSITIONS[status]?.map((next) => (
+              <form key={next} action={changeGameStatus.bind(null, gameId, next)}>
                 <button
                   type="submit"
-                  className={cn(
-                    "w-full h-11 rounded-xl text-sm font-semibold transition",
-                    next === "cancelled"
-                      ? "bg-red-500/15 text-red-400 hover:bg-red-500/25"
-                      : "bg-surface-overlay hover:bg-surface-overlay/70"
-                  )}
+                  className="w-full flex h-11 items-center justify-center rounded-xl bg-surface-overlay text-sm font-semibold hover:bg-surface-overlay/70 transition"
                 >
                   {TRANSITION_LABELS[next]}
                 </button>

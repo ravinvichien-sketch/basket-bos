@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import { JerseyNameForm } from "@/features/settings/components/jersey-name-form";
 import { AvatarUpload } from "@/features/settings/components/avatar-upload";
 import { LanguageToggle } from "@/features/settings/components/language-toggle";
+import { AiSettingsForm } from "@/features/settings/components/ai-settings-form";
 import { Card, CardTitle } from "@/components/ui/card";
 
 export default async function SettingsPage() {
@@ -20,6 +21,12 @@ export default async function SettingsPage() {
     .from("profiles")
     .select("nickname, avatar_url")
     .eq("id", user.id)
+    .single();
+
+  const { data: aiSettings } = await supabase
+    .from("user_ai_settings")
+    .select("provider")
+    .eq("profile_id", user.id)
     .single();
 
   return (
@@ -41,6 +48,10 @@ export default async function SettingsPage() {
 
       <Card>
         <LanguageToggle current={lang} />
+      </Card>
+
+      <Card>
+        <AiSettingsForm lang={lang} currentProvider={aiSettings?.provider ?? "default"} />
       </Card>
     </main>
   );

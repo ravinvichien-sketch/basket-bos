@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createGroup, type ActionState } from "../actions";
 
 export function CreateGroupForm() {
@@ -28,6 +28,26 @@ export function CreateGroupForm() {
         <p className="text-[11px] text-ink-faint pl-1">
           เชิญบอท Basket Bos เข้า LINE Group → บอทจะตอบ ID กลับมา — คัดลอกมาวางตรงนี้
         </p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs text-ink-faint mb-1">เริ่มเล่น (เวลา)</label>
+          <input
+            name="play_start_time"
+            type="time"
+            defaultValue="19:00"
+            className="h-11 w-full rounded-xl bg-surface-overlay border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-ink-faint mb-1">เลิกเล่น (เวลา)</label>
+          <input
+            name="play_end_time"
+            type="time"
+            defaultValue="21:00"
+            className="h-11 w-full rounded-xl bg-surface-overlay border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court"
+          />
+        </div>
       </div>
       <button
         type="submit"

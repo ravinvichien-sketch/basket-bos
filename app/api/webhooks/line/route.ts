@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { replyLineText } from "@/lib/line/messaging";
+import { pushToProfiles } from "@/features/notifications/line";
+import { pushRosterToGroup } from "@/features/registration/actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { gameListFlex } from "@/features/notifications/flex";
 
@@ -56,11 +58,14 @@ async function getOpenGamesInGroup(
 async function replySessionPicker(
   replyToken: string,
   groupName: string,
-  games: OpenGameBrief[]
+  games: OpenGameBrief[],
+  action: "join" | "leave" = "join"
 ) {
   const flex = {
     type: "flex",
-    altText: `🏀 เลือก Session (${groupName})`,
+    altText: action === "leave"
+      ? `❌ เลือก Session เพื่อถอนตัว (${groupName})`
+      : `🏀 เลือก Session (${groupName})`,
     contents: {
       type: "carousel",
       contents: games.map((g) => {
@@ -109,11 +114,11 @@ async function replySessionPicker(
               {
                 type: "button",
                 style: "primary",
-                color: "#F97316",
+                color: action === "leave" ? "#EF4444" : "#F97316",
                 action: {
                   type: "postback",
-                  label: "✅ ลงชื่อ",
-                  data: `join:${g.id}`,
+                  label: action === "leave" ? "❌ ถอนตัว" : "✅ ลงชื่อ",
+                  data: `${action}:${g.id}`,
                 },
               },
               {
@@ -207,7 +212,8 @@ async function handleJoin(
   admin: AdminClient,
   replyToken: string,
   lineUserId: string,
-  gameId: string
+  gameId: string,
+  status: "confirmed" | "tentative" = "confirmed"
 ) {
   const { data: profile } = await admin
     .from("profiles")
@@ -264,7 +270,9 @@ async function handleJoin(
   const isFull = (confirmedCount ?? 0) >= game.max_players;
   let newStatus: string;
 
-  if (!isFull) {
+  if (status === "tentative") {
+    newStatus = "tentative";
+  } else if (!isFull) {
     newStatus = "confirmed";
   } else {
     const { count: waitlistCount } = await admin
@@ -300,20 +308,72 @@ async function handleJoin(
   await replyWithRoster(admin, replyToken, gameId);
 }
 
+async function handleLeave(
+  admin: AdminClient,
+  replyToken: string,
+  lineUserId: string,
+  gameId: string
+) {
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("line_user_id", lineUserId)
+    .maybeSingle();
+
+  if (!profile) {
+    await replyLineText(
+      replyToken,
+      "🔄 กรุณาเข้าสู่ระบบผ่าน Web App ก่อน\n" +
+        (process.env.NEXT_PUBLIC_APP_URL ?? "")
+    );
+    return;
+  }
+
+  const { error: rpcError } = await admin.rpc("cancel_registration", {
+    p_game_id: gameId,
+    p_profile_id: profile.id,
+  });
+
+  if (rpcError) {
+    const { error: directError } = await admin
+      .from("registrations")
+      .update({
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+      })
+      .eq("game_id", gameId)
+      .eq("profile_id", profile.id)
+      .in("status", ["confirmed", "waitlisted"]);
+
+    if (directError) {
+      await replyLineText(replyToken, "❌ ถอนตัวไม่สำเร็จ");
+      return;
+    }
+  }
+
+  await replyWithRoster(admin, replyToken, gameId);
+}
+
 async function replyHelp(replyToken: string) {
   const text = [
+    "🌐 **BAS BOS Web App**",
+    (process.env.NEXT_PUBLIC_APP_URL ?? ""),
+    "",
     "🏀 **คำสั่งใน LINE**",
     "",
     "`ลงชื่อ` หรือ `join` — ลงชื่อ Session ถัดไป",
     "`ลงชื่อ ชื่อเกม` — ลงชื่อ Session ที่ระบุ",
+    "`ไม่แน่นอน` หรือ `maybe` — ลงชื่อแบบไม่แน่นอน",
+    "`พา [ชื่อเพื่อน]` — ลงชื่อพาแขกมาเล่น (รับผิดชอบค่าใช้จ่าย)",
+    "`พา [เพื่อน] เชิญโดย [ชื่อ]` — แขกของคนอื่น",
+    "`ยกเลิกแขก [ชื่อ]` — ถอนชื่อแขกที่เราเป็นคนพามา",
     "`คิว` หรือ `roster` — ดูรายชื่อ Session ล่าสุด",
     "`คิว ชื่อเกม` — ดูรายชื่อ Session ที่ระบุ",
     "`ถอน` หรือ `leave` — ถอนตัวจาก Session ล่าสุด",
     "`สถานะ` หรือ `status` — ดู Session ที่คุณลงชื่อไว้",
     "`เกม` หรือ `games` — ดู Session ที่เปิดรับสมัคร",
+    "`แอป` หรือ `app` — เปิด Web App",
     "`ช่วยเหลือ` หรือ `help` — แสดงคำสั่งนี้",
-    "",
-    "เปิดแอป: " + (process.env.NEXT_PUBLIC_APP_URL ?? ""),
   ].join("\n");
   await replyLineText(replyToken, text);
 }
@@ -369,13 +429,39 @@ async function handleEvent(
     const [action, param] = data.split(":") as [string, string | undefined];
 
     if (action === "join" && param) {
-      await handleJoin(admin, replyToken, lineUserId, param);
+      if (param === "latest") {
+        const gameId = await resolveGameScoped(
+          admin, replyToken, lineGroupId, "latest", ""
+        );
+        if (gameId && gameId !== "PICKER_SENT") {
+          await handleJoin(admin, replyToken, lineUserId, gameId);
+        } else if (!gameId) {
+          await replyLineText(replyToken, "❌ ไม่มี Session ที่เปิดรับ");
+        }
+      } else {
+        await handleJoin(admin, replyToken, lineUserId, param);
+      }
+      return;
+    }
+
+    if (action === "leave" && param) {
+      await handleLeave(admin, replyToken, lineUserId, param);
       return;
     }
 
     if (action === "roster" && param) {
-      const gameId = param;
-      await replyWithRoster(admin, replyToken, gameId);
+      if (param === "latest") {
+        const gameId = await resolveGameScoped(
+          admin, replyToken, lineGroupId, "latest", ""
+        );
+        if (gameId && gameId !== "PICKER_SENT") {
+          await replyWithRoster(admin, replyToken, gameId);
+        } else if (!gameId) {
+          await replyLineText(replyToken, "❌ ไม่มี Session ที่เปิดรับ");
+        }
+      } else {
+        await replyWithRoster(admin, replyToken, param);
+      }
       return;
     }
 
@@ -392,25 +478,16 @@ async function handleEvent(
     const text = event.message.text.trim();
 
     const isJoin = /^ลงชื่อ/i.test(text) || /^join\b/i.test(text);
+    const isMaybe = /^(ไม่แน่นอน)/i.test(text) || /^maybe\b/i.test(text);
+    const isGuest = /^(พา|ชวน|เพื่อน)\s/i.test(text);
+    const isRemoveGuest = /^(ยกเลิกแขก|ยกเลิกเพื่อน|ถอนแขก|ถอนเพื่อน)\s/i.test(text);
     const isRoster = /^(คิว|ดูคิว)/i.test(text) || /^roster\b/i.test(text);
     const isLeave = /^(ถอน|ถอนตัว)/i.test(text) || /^leave\b/i.test(text);
     const isStatus = /^สถานะ/i.test(text) || /^status\b/i.test(text);
     const isGames = /^เกม/i.test(text) || /^games\b/i.test(text);
     const isGroupId = /^(groupid|myid|ไอดีกลุ่ม)$/i.test(text);
+    const isApp = /^(web|app|แอป|เว็บ)$/i.test(text);
     const isHelp = /^(ช่วยเหลือ|สวัสดี)/i.test(text) || /^help\b/i.test(text);
-
-    if (
-      !isHelp &&
-      !isGames &&
-      !isJoin &&
-      !isRoster &&
-      !isLeave &&
-      !isStatus &&
-      !isGroupId
-    ) {
-      await replyHelp(replyToken);
-      return;
-    }
 
     if (isHelp) {
       await replyHelp(replyToken);
@@ -428,6 +505,14 @@ async function handleEvent(
       await replyLineText(
         replyToken,
         `LINE Group ID ของคุณคือ:\n${lineGroupId}\n\nคัดลอกไปวางในแอปที่ หน้าก๊วน > แก้ไข LINE Group`
+      );
+      return;
+    }
+
+    if (isApp) {
+      await replyLineText(
+        replyToken,
+        `🌐 เปิด BAS BOS Web App:\n${process.env.NEXT_PUBLIC_APP_URL ?? ""}`
       );
       return;
     }
@@ -490,6 +575,257 @@ async function handleEvent(
         // Multiple sessions, no clear match → show picker
         await replySessionPicker(replyToken, group.name, openGames);
       }
+      return;
+    }
+
+    if (isMaybe) {
+      if (!lineUserId) return;
+      const keyword =
+        text.replace(/^(ไม่แน่นอน|maybe)\s*/i, "").trim() || undefined;
+
+      if (!group && !lineGroupId) {
+        const gameId = await resolveGameScoped(
+          admin, replyToken, undefined, keyword, ""
+        );
+        if (!gameId) {
+          await replyLineText(
+            replyToken,
+            "❌ ไม่พบ Session ที่เปิดรับ — พิมพ์ `เกม` เพื่อดูรายชื่อ Session"
+          );
+        }
+        return;
+      }
+
+      if (!group) {
+        await replyLineText(
+          replyToken,
+          "❌ ยังไม่ได้ผูก LINE Group นี้กับก๊วนในแอป\n" +
+            "พิมพ์ `groupid` เพื่อคัดลอก ID ไปตั้งค่าในแอป"
+        );
+        return;
+      }
+
+      const openGames = await getOpenGamesInGroup(admin, group.id);
+      if (openGames.length === 0) {
+        await replyLineText(
+          replyToken,
+          "❌ ก๊วนนี้ยังไม่มี Session ที่เปิดรับอยู่"
+        );
+        return;
+      }
+
+      const picked = pickGame(openGames, keyword);
+      if (picked) {
+        await handleJoin(admin, replyToken, lineUserId, picked.id, "tentative");
+      } else {
+        await replySessionPicker(replyToken, group.name, openGames);
+      }
+      return;
+    }
+
+    if (isGuest) {
+      if (!lineUserId) return;
+
+      // Format: "พา [ชื่อแขก]" or "พา [ชื่อแขก] เชิญโดย [ชื่อคนชวน]"
+      const afterCmd = text.replace(/^(พา|ชวน|เพื่อน)\s+/i, "").trim();
+
+      // Parse name and optional inviter
+      let guestName = afterCmd;
+      let refNickname: string | null = null;
+
+      const inviteMatch = afterCmd.match(/^(.*?)\s+เชิญโดย\s+(.+)$/i);
+      if (inviteMatch) {
+        guestName = inviteMatch[1].trim();
+        refNickname = inviteMatch[2].trim();
+      }
+
+      if (!guestName || guestName.length > 30) {
+        await replyLineText(replyToken, "❌ รูปแบบคำสั่ง: `พา [ชื่อเพื่อน]` หรือ `พา [ชื่อเพื่อน] เชิญโดย [ชื่อคนชวน]`");
+        return;
+      }
+
+      if (!group && !lineGroupId) {
+        const gameId = await resolveGameScoped(admin, replyToken, undefined, undefined, "");
+        if (!gameId) {
+          await replyLineText(replyToken, "❌ ไม่พบ Session ที่เปิดรับ — พิมพ์ `เกม` เพื่อดูรายชื่อ Session");
+        }
+        return;
+      }
+
+      if (!group) {
+        await replyLineText(replyToken, "❌ ยังไม่ได้ผูก LINE Group นี้กับก๊วนในแอป\nพิมพ์ `groupid` เพื่อคัดลอก ID ไปตั้งค่าในแอป");
+        return;
+      }
+
+      const openGames = await getOpenGamesInGroup(admin, group.id);
+      if (openGames.length === 0) {
+        await replyLineText(replyToken, "❌ ก๊วนนี้ยังไม่มี Session ที่เปิดรับอยู่");
+        return;
+      }
+
+      const game = openGames[0];
+      if (!game) {
+        await replyLineText(replyToken, "❌ ไม่พบ Session");
+        return;
+      }
+
+      // Find caller profile
+      const { data: callerProfile } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("line_user_id", lineUserId)
+        .maybeSingle();
+
+      if (!callerProfile) {
+        await replyLineText(replyToken, "🔄 กรุณาเข้าสู่ระบบผ่าน Web App ก่อนใช้บริการนี้\n" + (process.env.NEXT_PUBLIC_APP_URL ?? ""));
+        return;
+      }
+
+      // Resolve ref_profile_id if refNickname was provided
+      let refProfileId: string | null = null;
+      if (refNickname) {
+        const { data: refProfile } = await admin
+          .from("profiles")
+          .select("id")
+          .ilike("nickname", `%${refNickname}%`)
+          .maybeSingle();
+
+        if (refProfile) {
+          refProfileId = refProfile.id;
+        } else {
+          await replyLineText(replyToken, `❌ ไม่พบผู้ใช้ "${refNickname}" ในระบบ`);
+          return;
+        }
+      }
+
+      // Call addGuest via formData-like RPC
+      // Call addGuest via admin client
+      const guestEmail = `guest-${crypto.randomUUID()}@guest.basketbos.local`;
+      const guestPw = crypto.randomUUID();
+
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email: guestEmail,
+        password: guestPw,
+        email_confirm: true,
+      });
+
+      if (createError || !created) {
+        await replyLineText(replyToken, "❌ สร้างแขกไม่สำเร็จ ลองใหม่");
+        return;
+      }
+
+      const { error: profileErr } = await admin.from("profiles").insert({
+        id: created.user.id,
+        line_user_id: `guest:${created.user.id}`,
+        nickname: guestName,
+        is_guest: true,
+        onboarded: false,
+      });
+
+      if (profileErr) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        await replyLineText(replyToken, "❌ สร้างแขกไม่สำเร็จ ลองใหม่");
+        return;
+      }
+
+      const { error: regErr } = await admin.rpc("register_guest", {
+        p_game_id: game.id,
+        p_profile_id: created.user.id,
+        p_ref_profile_id: refProfileId,
+        p_note: null,
+      });
+
+      if (regErr) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        await replyLineText(replyToken, "❌ ลงชื่อแขกไม่สำเร็จ");
+        return;
+      }
+
+      if (refProfileId) {
+        try {
+          await pushToProfiles(
+            [refProfileId],
+            `🙋 มีคนลงชื่อ "${guestName}" (แขก) โดยระบุว่าเป็นเพื่อนที่คุณชวนมาในเกม "${game?.title ?? ""}"\nเปิดแอปเพื่อกดยืนยัน`,
+            "ref_approval_needed"
+          );
+        } catch {}
+      }
+
+      // Push roster update
+      try {
+        await pushRosterToGroup(game.id, `➕ ${guestName} (แขกของ ${refNickname ?? "คุณ"}) ลงชื่อแล้ว`);
+      } catch {}
+
+      await replyLineText(replyToken, `✅ ลงชื่อ "${guestName}" (แขก) เรียบร้อย${refNickname ? ` — รอ ${refNickname} ยืนยัน` : ""}`);
+      return;
+    }
+
+    if (isRemoveGuest) {
+      if (!lineUserId) return;
+
+      const guestNameToRemove = text.replace(/^(ยกเลิกแขก|ยกเลิกเพื่อน|ถอนแขก|ถอนเพื่อน)\s+/i, "").trim();
+      if (!guestNameToRemove || guestNameToRemove.length > 30) {
+        await replyLineText(replyToken, "❌ รูปแบบ: `ยกเลิกแขก [ชื่อเพื่อน]`");
+        return;
+      }
+
+      if (!group) {
+        await replyLineText(replyToken, "❌ ยังไม่ได้ผูก LINE Group นี้กับก๊วนในแอป");
+        return;
+      }
+
+      const openGames = await getOpenGamesInGroup(admin, group.id);
+      if (openGames.length === 0) {
+        await replyLineText(replyToken, "❌ ก๊วนนี้ยังไม่มี Session ที่เปิดรับอยู่");
+        return;
+      }
+
+      const game = openGames[0];
+      if (!game) {
+        await replyLineText(replyToken, "❌ ไม่พบ Session");
+        return;
+      }
+
+      // Find caller profile
+      const { data: callerProfile } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("line_user_id", lineUserId)
+        .maybeSingle();
+
+      if (!callerProfile) {
+        await replyLineText(replyToken, "🔄 กรุณาเข้าสู่ระบบผ่าน Web App ก่อนใช้บริการนี้");
+        return;
+      }
+
+      // Find guest registration matching the name, created by caller, for this game
+      const { data: guestRegs } = await admin
+        .from("registrations")
+        .select("id, profile_id, profiles!profile_id(nickname)")
+        .eq("game_id", game.id)
+        .eq("added_by", callerProfile.id)
+        .in("status", ["confirmed", "waitlisted", "tentative"])
+        .order("registered_at", { ascending: true });
+
+      const match = (guestRegs ?? []).find((r) => {
+        const p = r.profiles as { nickname?: string } | null;
+        return p?.nickname?.toLowerCase().includes(guestNameToRemove.toLowerCase());
+      });
+
+      if (!match) {
+        await replyLineText(replyToken, `❌ ไม่พบแขก "${guestNameToRemove}" ที่คุณพามา`);
+        return;
+      }
+
+      // Cancel registration
+      await admin
+        .from("registrations")
+        .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+        .eq("id", match.id);
+
+      await pushRosterToGroup(game.id, `➖ ${guestNameToRemove} (แขก) ถอนตัวแล้ว`);
+
+      await replyLineText(replyToken, `✅ ยกเลิก "${guestNameToRemove}" (แขก) แล้ว`);
       return;
     }
 
@@ -680,7 +1016,7 @@ async function handleEvent(
         }
         await replyWithRoster(admin, replyToken, registeredGames[0].id);
       } else {
-        await replySessionPicker(replyToken, group.name, registeredGames);
+        await replySessionPicker(replyToken, group.name, registeredGames, "leave");
       }
       return;
     }
@@ -876,7 +1212,7 @@ async function replyWithRoster(
       .single(),
     admin
       .from("registrations")
-      .select("status, profiles!profile_id(nickname)")
+      .select("status, profiles!profile_id(nickname, is_guest), ref:profiles!ref_profile_id(nickname)")
       .eq("game_id", gameId)
       .in("status", ["confirmed", "waitlisted", "tentative"])
       .order("registered_at", { ascending: true }),
@@ -887,8 +1223,15 @@ async function replyWithRoster(
     return;
   }
 
-  const nick = (r: { profiles: unknown }) =>
-    (r.profiles as { nickname?: string } | null)?.nickname ?? "ผู้เล่น";
+  const nick = (r: { profiles: unknown; ref?: unknown }) => {
+    const p = r.profiles as { nickname?: string; is_guest?: boolean } | null;
+    const ref = r.ref as { nickname?: string } | null;
+    const base = p?.nickname ?? "ผู้เล่น";
+    if (p?.is_guest && ref?.nickname) {
+      return `${base} (แขกของ ${ref.nickname})`;
+    }
+    return base;
+  };
   const confirmed = (regs ?? [])
     .filter((r) => r.status === "confirmed")
     .map(nick);

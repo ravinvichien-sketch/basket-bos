@@ -13,8 +13,29 @@ export async function uploadGamePhoto(
   const { user } = await requireUser();
   const admin = createAdminClient();
   const files = formData.getAll("photo") as File[];
+  const driveUrl = (formData.get("drive_url") as string)?.trim() || null;
 
-  if (files.length === 0) return { error: "กรุณาเลือกรูป" };
+  if (files.length === 0 && !driveUrl) {
+    return { error: "กรุณาเลือกรูป หรือใส่ลิงก์ Google Drive" };
+  }
+
+  // Handle Google Drive link separately
+  if (driveUrl) {
+    const { error: dbError } = await admin
+      .from("game_photos")
+      .insert({
+        game_id: gameId,
+        uploaded_by: user.id,
+        storage_path: "",
+        drive_url: driveUrl,
+      });
+    if (dbError) return { error: "บันทึกลิงก์ไม่สำเร็จ" };
+  }
+
+  if (files.length === 0) {
+    revalidatePath(`/games/${gameId}/photos`);
+    return {};
+  }
 
   // Check bucket exists
   const { data: buckets } = await admin.storage.listBuckets();

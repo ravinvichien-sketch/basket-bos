@@ -27,7 +27,7 @@ export async function completeOnboarding(
     return { error: "ตำแหน่งไม่ถูกต้อง" };
   }
 
-  // ก๊วนที่เลือก (ต้องเลือกอย่างน้อย 1)
+  // ก๊วนที่เลือก (ไม่บังคับ — เลือกหรือข้ามไปก่อนได้)
   let groupIds: string[] = [];
   try {
     const raw = JSON.parse((formData.get("group_ids") as string) || "[]");
@@ -36,9 +36,6 @@ export async function completeOnboarding(
     }
   } catch {
     groupIds = [];
-  }
-  if (groupIds.length === 0) {
-    return { error: "กรุณาเลือกอย่างน้อย 1 ก๊วนที่คุณเล่นอยู่" };
   }
 
   const parsed = onboardingSchema.safeParse({
@@ -83,10 +80,12 @@ export async function completeOnboarding(
   if (posError) return { error: "บันทึกตำแหน่งไม่สำเร็จ กรุณาลองใหม่" };
 
   // ผูกก๊วนที่เลือก
-  const { error: groupError } = await supabase.rpc("set_my_groups", {
-    p_group_ids: groupIds,
-  });
-  if (groupError) return { error: "ผูกก๊วนไม่สำเร็จ กรุณาลองใหม่" };
+  if (groupIds.length > 0) {
+    const { error: groupError } = await supabase.rpc("set_my_groups", {
+      p_group_ids: groupIds,
+    });
+    if (groupError) return { error: "ผูกก๊วนไม่สำเร็จ กรุณาลองใหม่" };
+  }
 
   revalidatePath("/", "layout");
   redirect("/dashboard");
@@ -133,7 +132,8 @@ export async function setCardPhoto(publicUrl: string): Promise<ActionState> {
 
 export async function addComment(
   targetId: string,
-  content: string
+  content: string,
+  parentId?: string
 ): Promise<ActionState> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -146,6 +146,7 @@ export async function addComment(
     target_id: targetId,
     author_id: user.id,
     content: t,
+    parent_id: parentId || null,
   });
   if (error) return { error: "ส่งข้อความไม่สำเร็จ" };
 

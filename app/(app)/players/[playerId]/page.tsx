@@ -5,6 +5,7 @@ import { computeOvr, tierOf, type SeasonStats } from "@/features/stats/lib/ratin
 import { CardViewToggle } from "@/features/stats/components/card-view-toggle";
 import { ShareCardButton } from "@/features/stats/components/share-card-button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { formatThaiDateTime } from "@/lib/format";
 import {
   ProfileComments,
@@ -47,20 +48,43 @@ export default async function PlayerPage({
 
   const isMe = playerId === user.id;
 
-  // Comments
-  const { data: rawComments } = await supabase
-    .from("profile_comments")
-    .select("id, content, created_at, author_id, profiles!author_id(nickname)")
-    .eq("target_id", playerId)
-    .order("created_at", { ascending: false });
+  // Comments (with parent_id for replies — fallback if column missing)
+  let rawComments: unknown[] = [];
+  try {
+    const r = await supabase
+      .from("profile_comments")
+      .select("id, content, created_at, author_id, parent_id, profiles!author_id(nickname)")
+      .eq("target_id", playerId)
+      .order("created_at", { ascending: false });
+    rawComments = (r.data ?? []) as unknown[];
+  } catch {
+    // parent_id column might not exist yet
+    const r = await supabase
+      .from("profile_comments")
+      .select("id, content, created_at, author_id, profiles!author_id(nickname)")
+      .eq("target_id", playerId)
+      .order("created_at", { ascending: false });
+    rawComments = (r.data ?? []) as unknown[];
+  }
 
-  // Dream teams
-  const { data: myTeams } = await supabase
+  // Dream teams — แสดงทีมที่ playerId เป็น owner หรือเป็น member (รวม pending)
+  const { data: ownedTeams } = await supabase
     .from("dream_teams")
     .select("id, name, owner_id, profiles!owner_id(nickname)")
-    .or(`owner_id.eq.${playerId}`);
+    .eq("owner_id", playerId);
 
-  const teamIds = (myTeams ?? []).map((t: { id: string }) => t.id);
+  const { data: memberTeams } = await supabase
+    .from("dream_team_members")
+    .select("dream_teams!inner(id, name, owner_id, profiles!owner_id(nickname))")
+    .eq("profile_id", playerId);
+
+  const rawDt = (ownedTeams ?? []) as unknown as { id: string; name: string; owner_id: string; profiles: { nickname: string } | { nickname: string }[] | null }[];
+  for (const mt of (memberTeams ?? []) as unknown as { dream_teams: { id: string; name: string; owner_id: string; profiles: { nickname: string } | { nickname: string }[] | null } }[]) {
+    const t = mt.dream_teams;
+    if (!rawDt.some((x) => x.id === t.id)) rawDt.push(t);
+  }
+
+  const teamIds = rawDt.map((t) => t.id);
   const { data: teamMembers } = teamIds.length > 0
     ? await supabase
         .from("dream_team_members")
@@ -68,14 +92,13 @@ export default async function PlayerPage({
         .in("dream_team_id", teamIds)
     : { data: [] };
 
-  const dtTeams: DreamTeamView[] = ((myTeams ?? []) as unknown[]).map((t) => {
-    const tt = t as { id: string; name: string; owner_id: string; profiles: { nickname: string } | { nickname: string }[] | null };
-    const ownerNick = Array.isArray(tt.profiles)
-      ? tt.profiles[0]?.nickname ?? "ผู้เล่น"
-      : tt.profiles?.nickname ?? "ผู้เล่น";
+  const dtTeams: DreamTeamView[] = rawDt.map((t) => {
+    const ownerNick = Array.isArray(t.profiles)
+      ? t.profiles[0]?.nickname ?? "ผู้เล่น"
+      : t.profiles?.nickname ?? "ผู้เล่น";
     const members: { id: string; profile_id: string; nickname: string; avatar_url: string | null; status: string }[] = [];
     for (const m of (teamMembers ?? []) as unknown as { id: string; dream_team_id: string; profile_id: string; status: string; profiles: { nickname: string; avatar_url: string | null } | null }[]) {
-      if (m.dream_team_id === tt.id) {
+      if (m.dream_team_id === t.id) {
         members.push({
           id: m.id,
           profile_id: m.profile_id,
@@ -86,9 +109,9 @@ export default async function PlayerPage({
       }
     }
     return {
-      id: tt.id,
-      name: tt.name,
-      owner_id: tt.owner_id,
+      id: t.id,
+      name: t.name,
+      owner_id: t.owner_id,
       owner_nickname: ownerNick,
       members,
     };
@@ -110,12 +133,29 @@ export default async function PlayerPage({
   const stats: SeasonStats | null = season
     ? {
         games_played: Number(season.games_played),
+        total_minutes: Number(season.total_minutes ?? 0),
+        total_points: Number(season.total_points ?? 0),
+        total_fgm: Number(season.total_fgm ?? 0),
+        total_fga: Number(season.total_fga ?? 0),
+        total_tpm: Number(season.total_tpm ?? 0),
+        total_tpa: Number(season.total_tpa ?? 0),
+        total_ftm: Number(season.total_ftm ?? 0),
+        total_fta: Number(season.total_fta ?? 0),
+        total_reb_off: Number(season.total_reb_off ?? 0),
+        total_reb_def: Number(season.total_reb_def ?? 0),
+        total_assists: Number(season.total_assists ?? 0),
+        total_steals: Number(season.total_steals ?? 0),
+        total_blocks: Number(season.total_blocks ?? 0),
+        total_turnovers: Number(season.total_turnovers ?? 0),
+        total_fouls: Number(season.total_fouls ?? 0),
+        total_plus_minus: Number(season.total_plus_minus ?? 0),
         ppg: Number(season.ppg ?? 0),
         rpg: Number(season.rpg ?? 0),
         apg: Number(season.apg ?? 0),
         spg: Number(season.spg ?? 0),
         bpg: Number(season.bpg ?? 0),
         fg_pct: season.fg_pct != null ? Number(season.fg_pct) : null,
+        tp_pct: season.tp_pct != null ? Number(season.tp_pct) : null,
         mvp_count: Number(season.mvp_count ?? 0),
       }
     : null;
@@ -129,6 +169,7 @@ export default async function PlayerPage({
       content: string;
       created_at: string;
       author_id: string;
+      parent_id?: string | null;
       profiles: { nickname: string } | null;
     };
     return {
@@ -136,9 +177,25 @@ export default async function PlayerPage({
       content: r.content,
       created_at: r.created_at,
       author_id: r.author_id,
+      parent_id: r.parent_id ?? null,
       author_nickname: r.profiles?.nickname ?? "ผู้เล่น",
     };
   });
+
+  // Group replies under parent comments
+  const topComments = comments.filter((c) => !c.parent_id);
+  const replyMap = new Map<string, CommentView[]>();
+  for (const c of comments) {
+    if (c.parent_id) {
+      const existing = replyMap.get(c.parent_id) ?? [];
+      existing.push(c);
+      replyMap.set(c.parent_id, existing);
+    }
+  }
+  const threaded: CommentView[] = topComments.map((c) => ({
+    ...c,
+    replies: replyMap.get(c.id) ?? [],
+  }));
 
   return (
     <main className="px-5 py-8 space-y-5">
@@ -152,7 +209,7 @@ export default async function PlayerPage({
         </h1>
       </header>
 
-      {isMe && (
+      {dtTeams.length > 0 && (
         <Card>
           <CardTitle>🌟 Dream Team</CardTitle>
           <div className="mt-2">
@@ -202,32 +259,94 @@ export default async function PlayerPage({
       <ShareCardButton profileId={playerId} />
 
       {stats && stats.games_played > 0 && (
-        <Card>
-          <CardTitle>ค่าเฉลี่ยต่อเกม</CardTitle>
-          <div className="mt-3 grid grid-cols-5 gap-3 text-center">
-              {(
-                [
-                  [stats.ppg.toFixed(1), "แต้ม"],
-                  [stats.rpg.toFixed(1), "รีบาวด์"],
-                  [stats.apg.toFixed(1), "แอสซิสต์"],
-                  [stats.spg.toFixed(1), "สตีล"],
-                  [stats.bpg.toFixed(1), "บล็อก"],
-                ] as const
-              ).map(([v, l]) => (
-              <div key={l}>
-                <p className="font-display text-2xl font-bold tabular-nums">
-                  {v}
-                </p>
-                <p className="text-xs text-ink-faint">{l}</p>
+        <>
+          <Card>
+            <CardTitle>ค่าเฉลี่ยต่อเกม</CardTitle>
+            <div className="mt-3 grid grid-cols-5 gap-3 text-center">
+                {(
+                  [
+                    [stats.ppg.toFixed(1), "แต้ม"],
+                    [stats.rpg.toFixed(1), "รีบาวด์"],
+                    [stats.apg.toFixed(1), "แอสซิสต์"],
+                    [stats.spg.toFixed(1), "สตีล"],
+                    [stats.bpg.toFixed(1), "บล็อก"],
+                  ] as const
+                ).map(([v, l]) => (
+                <div key={l}>
+                  <p className="font-display text-2xl font-bold tabular-nums">
+                    {v}
+                  </p>
+                  <p className="text-xs text-ink-faint">{l}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-3 text-center text-xs">
+              <div>
+                <span className="text-ink-dim">FG% </span>
+                <span className="font-semibold">{stats.fg_pct != null ? `${stats.fg_pct}%` : "-"}</span>
               </div>
-            ))}
-          </div>
-          {stats.mvp_count > 0 && (
-            <p className="mt-3 text-center text-sm text-amber-400">
-              ⭐ MVP {stats.mvp_count} ครั้ง
-            </p>
-          )}
-        </Card>
+              <div>
+                <span className="text-ink-dim">3P% </span>
+                <span className="font-semibold">{stats.tp_pct != null ? `${stats.tp_pct}%` : "-"}</span>
+              </div>
+              <div>
+                <span className="text-ink-dim">+/- </span>
+                <span className={cn("font-semibold", stats.total_plus_minus > 0 ? "text-emerald-400" : stats.total_plus_minus < 0 ? "text-red-400" : "")}>
+                  {stats.total_plus_minus > 0 ? "+" : ""}{stats.total_plus_minus}
+                </span>
+              </div>
+            </div>
+            {stats.mvp_count > 0 && (
+              <p className="mt-3 text-center text-sm text-amber-400">
+                ⭐ MVP {stats.mvp_count} ครั้ง
+              </p>
+            )}
+          </Card>
+
+          <Card>
+            <CardTitle>สถิติรวม</CardTitle>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-ink-faint border-b border-white/5">
+                    <th className="text-left py-2 pr-2">รายการ</th>
+                    <th className="text-right px-1.5 py-2">รวม</th>
+                    <th className="text-right pl-1.5 py-2">เฉลี่ย</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    ["เกมส์", `${stats.games_played}`, `${stats.games_played}`],
+                    ["นาที", `${stats.total_minutes}`, stats.games_played > 0 ? (stats.total_minutes / stats.games_played).toFixed(1) : "0"],
+                    ["แต้ม", `${stats.total_points}`, stats.ppg.toFixed(1)],
+                    ["FG 2 คะแนน (ทำ/ยิง)", `${stats.total_fgm - stats.total_tpm} / ${stats.total_fga - stats.total_tpa}`, (() => {
+                      const a = stats.total_fga - stats.total_tpa;
+                      return a > 0 ? `${Math.round(((stats.total_fgm - stats.total_tpm) / a) * 100)}%` : "-";
+                    })()],
+                    ["FG 3 คะแนน (ทำ/ยิง)", `${stats.total_tpm} / ${stats.total_tpa}`, stats.tp_pct != null ? `${stats.tp_pct}%` : "-"],
+                    ["FG%", stats.fg_pct != null ? `${stats.fg_pct}%` : "-", ""],
+                    ["ฟรีโธรว์ (ทำ/ยิง)", `${stats.total_ftm} / ${stats.total_fta}`, stats.total_fta > 0 ? `${Math.round((stats.total_ftm / stats.total_fta) * 100)}%` : "-"],
+                    ["รีบาวด์รวม", `${stats.total_reb_off + stats.total_reb_def}`, stats.rpg.toFixed(1)],
+                    ["  รีบาวด์รุก", `${stats.total_reb_off}`, stats.games_played > 0 ? (stats.total_reb_off / stats.games_played).toFixed(1) : "0"],
+                    ["  รีบาวด์รับ", `${stats.total_reb_def}`, stats.games_played > 0 ? (stats.total_reb_def / stats.games_played).toFixed(1) : "0"],
+                    ["แอสซิสต์", `${stats.total_assists}`, stats.apg.toFixed(1)],
+                    ["สตีล", `${stats.total_steals}`, stats.spg.toFixed(1)],
+                    ["บล็อก", `${stats.total_blocks}`, stats.bpg.toFixed(1)],
+                    ["เทิร์นโอเวอร์", `${stats.total_turnovers}`, stats.games_played > 0 ? (stats.total_turnovers / stats.games_played).toFixed(1) : "0"],
+                    ["ฟาวล์", `${stats.total_fouls}`, stats.games_played > 0 ? (stats.total_fouls / stats.games_played).toFixed(1) : "0"],
+                    ["+/-", stats.total_plus_minus > 0 ? `+${stats.total_plus_minus}` : `${stats.total_plus_minus}`, stats.games_played > 0 ? ((stats.total_plus_minus / stats.games_played) > 0 ? "+" : "") + (stats.total_plus_minus / stats.games_played).toFixed(1) : "0"],
+                  ] as const).map(([label, total, avg]) => (
+                    <tr key={label} className="border-b border-white/5 hover:bg-surface-overlay/30">
+                      <td className="py-1.5 pr-2 whitespace-nowrap">{label}</td>
+                      <td className="text-right px-1.5 py-1.5 tabular-nums">{total}</td>
+                      <td className="text-right pl-1.5 py-1.5 tabular-nums text-ink-dim">{avg}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
       )}
 
       {log && log.length > 0 && (
@@ -273,7 +392,8 @@ export default async function PlayerPage({
           <ProfileComments
             targetId={playerId}
             meId={user.id}
-            comments={comments}
+            isOwner={isMe}
+            comments={threaded}
           />
         </div>
       </Card>

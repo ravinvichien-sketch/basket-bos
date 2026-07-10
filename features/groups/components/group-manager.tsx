@@ -9,6 +9,8 @@ import {
   setGroupAdmin,
   renameGroup,
   deleteGroup,
+  setMemberNickname,
+  assignPlayersToGroup,
 } from "../actions";
 
 export interface GroupMemberView {
@@ -35,6 +37,7 @@ export function GroupManager({
 }) {
   const router = useRouter();
   const [pick, setPick] = useState("");
+  const [selectedBatch, setSelectedBatch] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -99,6 +102,20 @@ export function GroupManager({
               </span>
             )}
             <span className="flex-1 truncate text-sm">{m.nickname}</span>
+            {canManage && (
+              <button
+                onClick={() => {
+                  const n = window.prompt("ตั้งชื่อเล่นให้สมาชิกนี้", m.nickname)?.trim();
+                  if (!n || n === m.nickname) return;
+                  run(() => setMemberNickname(groupId, m.id, n));
+                }}
+                disabled={pending}
+                className="h-7 w-7 rounded-full bg-surface-overlay text-[11px] hover:bg-surface-overlay/70 transition disabled:opacity-50"
+                aria-label="ตั้งชื่อเล่น"
+              >
+                ✎
+              </button>
+            )}
             {m.role === "admin" && (
               <span className="rounded-full bg-court/15 text-court px-2 py-0.5 text-[10px] font-semibold">
                 แอดมินก๊วน
@@ -135,32 +152,79 @@ export function GroupManager({
       </ul>
 
       {canManage && candidates.length > 0 && (
-        <div className="flex gap-2">
-          <select
-            value={pick}
-            onChange={(e) => setPick(e.target.value)}
-            disabled={pending}
-            className="h-10 flex-1 rounded-xl bg-surface-overlay border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court disabled:opacity-50"
-          >
-            <option value="">เพิ่มสมาชิกเข้าก๊วน...</option>
-            {candidates.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nickname}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => {
-              if (!pick) return;
-              const id = pick;
-              setPick("");
-              run(() => addGroupMember(groupId, id));
-            }}
-            disabled={pending || !pick}
-            className="h-10 rounded-xl bg-court px-4 text-sm font-semibold text-white hover:bg-court-dark transition disabled:opacity-50"
-          >
-            เพิ่ม
-          </button>
+        <div className="space-y-3">
+          {/* Single add */}
+          <div className="flex gap-2">
+            <select
+              value={pick}
+              onChange={(e) => setPick(e.target.value)}
+              disabled={pending}
+              className="h-10 flex-1 rounded-xl bg-surface-overlay border border-white/10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-court disabled:opacity-50"
+            >
+              <option value="">เพิ่มสมาชิกเข้าก๊วน...</option>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nickname}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => {
+                if (!pick) return;
+                const id = pick;
+                setPick("");
+                run(() => addGroupMember(groupId, id));
+              }}
+              disabled={pending || !pick}
+              className="h-10 rounded-xl bg-court px-4 text-sm font-semibold text-white hover:bg-court-dark transition disabled:opacity-50"
+            >
+              เพิ่ม
+            </button>
+          </div>
+
+          {/* Batch add */}
+          <details className="group">
+            <summary className="cursor-pointer text-xs text-ink-faint hover:text-ink-dim transition select-none">
+              {selectedBatch.length > 0
+                ? `✓ เลือก ${selectedBatch.length} คนแล้ว — กดเพื่อแก้ไข`
+                : `เพิ่มทีละหลายคน — กดเพื่อเลือก`}
+            </summary>
+            <div className="max-h-48 overflow-y-auto space-y-1 mt-2">
+              {candidates.map((c) => (
+                <label
+                  key={c.id}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedBatch.includes(c.id)}
+                    onChange={() =>
+                      setSelectedBatch((prev) =>
+                        prev.includes(c.id)
+                          ? prev.filter((x) => x !== c.id)
+                          : [...prev, c.id]
+                      )
+                    }
+                    disabled={pending}
+                    className="accent-court"
+                  />
+                  {c.nickname}
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                if (selectedBatch.length === 0) return;
+                const ids = [...selectedBatch];
+                setSelectedBatch([]);
+                run(() => assignPlayersToGroup(groupId, ids));
+              }}
+              disabled={pending || selectedBatch.length === 0}
+              className="mt-2 rounded-lg bg-court px-4 py-1.5 text-xs font-semibold text-white hover:bg-court-dark transition disabled:opacity-50"
+            >
+              เพิ่ม {selectedBatch.length} คน
+            </button>
+          </details>
         </div>
       )}
 

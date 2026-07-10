@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { notifyPaid } from "../actions";
+import { notifyPaid, uploadSlip } from "../actions";
 import { Button } from "@/components/ui/button";
 
 export function NotifyPaidForm({
@@ -26,25 +25,35 @@ export function NotifyPaidForm({
 
     if (file) {
       setUploading(true);
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setError("กรุณาเข้าสู่ระบบใหม่");
+
+      if (file.size > 5 * 1024 * 1024) {
+        setError("รูปต้องไม่เกิน 5 MB");
         setUploading(false);
         return;
       }
-      const ext = file.name.split(".").pop() ?? "jpg";
-      slipPath = `${user.id}/${paymentId}-${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("slips")
-        .upload(slipPath, file);
-      setUploading(false);
-      if (uploadError) {
+
+      try {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error("อ่านไฟล์ไม่สำเร็จ"));
+          reader.readAsDataURL(file);
+        });
+
+        const result = await uploadSlip(dataUrl);
+        if ("error" in result) {
+          setError(result.error);
+          setUploading(false);
+          return;
+        }
+        slipPath = result.path;
+      } catch {
         setError("อัพโหลดสลิปไม่สำเร็จ กรุณาลองใหม่");
+        setUploading(false);
         return;
       }
+
+      setUploading(false);
     }
 
     startTransition(async () => {

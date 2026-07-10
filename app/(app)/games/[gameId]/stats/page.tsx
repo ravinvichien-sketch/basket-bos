@@ -15,6 +15,7 @@ import {
   SessionLeaders,
   type LeaderStatRow,
 } from "@/features/stats/components/session-leaders";
+import { SelfStatsEditor } from "@/features/stats/components/self-stats-editor";
 import { computeStandings, type TeamStanding } from "@/features/stats/lib/standings";
 import { Card, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,7 @@ export default async function GameStatsPage({
   params: Promise<{ gameId: string }>;
 }) {
   const { gameId } = await params;
-  const { supabase, isAdmin } = await getAdminContext();
+  const { supabase, user, isAdmin } = await getAdminContext();
 
   const [
     { data: game },
@@ -36,7 +37,7 @@ export default async function GameStatsPage({
   ] = await Promise.all([
     supabase
       .from("games")
-      .select("id, title, status")
+      .select("id, title, status, game_duration_minutes")
       .eq("id", gameId)
       .single(),
     supabase
@@ -75,37 +76,70 @@ export default async function GameStatsPage({
 
   const initial: Record<string, StatLine> = {};
   for (const s of existing ?? []) {
-    initial[s.profile_id] = {
-      minutes: s.minutes,
-      fgm: s.fgm,
-      fga: s.fga,
-      tpm: s.tpm,
-      tpa: s.tpa,
-      ftm: s.ftm,
-      fta: s.fta,
-      assists: s.assists,
-      reb_off: s.reb_off,
-      reb_def: s.reb_def,
-      steals: s.steals,
-      blocks: s.blocks,
-      turnovers: s.turnovers,
-      fouls: s.fouls,
-      is_mvp: s.is_mvp,
+    const cur = initial[s.profile_id] ?? {
+      minutes: 0,
+      fgm: 0, fga: 0,
+      tpm: 0, tpa: 0,
+      ftm: 0, fta: 0,
+      assists: 0,
+      reb_off: 0, reb_def: 0,
+      steals: 0, blocks: 0,
+      turnovers: 0, fouls: 0,
+      is_mvp: false,
     };
+    cur.minutes += s.minutes;
+    cur.fgm += s.fgm; cur.fga += s.fga;
+    cur.tpm += s.tpm; cur.tpa += s.tpa;
+    cur.ftm += s.ftm; cur.fta += s.fta;
+    cur.assists += s.assists;
+    cur.reb_off += s.reb_off; cur.reb_def += s.reb_def;
+    cur.steals += s.steals; cur.blocks += s.blocks;
+    cur.turnovers += s.turnovers; cur.fouls += s.fouls;
+    if (s.is_mvp) cur.is_mvp = true;
+    initial[s.profile_id] = cur;
   }
 
-  const leaderRows: LeaderStatRow[] = (existing ?? []).map((s) => ({
-    profile_id: s.profile_id,
-    points: s.points,
-    reb_off: s.reb_off,
-    reb_def: s.reb_def,
-    assists: s.assists,
-    steals: s.steals,
-    blocks: s.blocks,
-  }));
+  const leaderRows: LeaderStatRow[] = (() => {
+    const map = new Map<string, LeaderStatRow>();
+    for (const s of existing ?? []) {
+      const cur = map.get(s.profile_id) ?? {
+        profile_id: s.profile_id, points: 0, reb_off: 0, reb_def: 0, assists: 0, steals: 0, blocks: 0,
+      };
+      cur.points += s.points;
+      cur.reb_off += s.reb_off; cur.reb_def += s.reb_def;
+      cur.assists += s.assists;
+      cur.steals += s.steals;
+      cur.blocks += s.blocks;
+      map.set(s.profile_id, cur);
+    }
+    return Array.from(map.values());
+  })();
   const hasStats = leaderRows.some(
     (r) => r.points + r.reb_off + r.reb_def + r.assists + r.steals + r.blocks > 0
   );
+
+  // Stats per match for current user (to enable self-editing)
+  const userMatchStats = existing
+    ?.filter((s) => s.profile_id === user.id && s.match_id)
+    .map((s) => {
+      const m = (matches ?? []).find((mm) => mm.id === s.match_id);
+      return {
+        matchId: s.match_id,
+        matchLabel: m ? `${m.score_a}-${m.score_b}` : "แมตช์",
+        profileId: s.profile_id,
+        points: s.points,
+        minutes: s.minutes,
+        fgm: s.fgm, fga: s.fga,
+        tpm: s.tpm, tpa: s.tpa,
+        ftm: s.ftm, fta: s.fta,
+        assists: s.assists,
+        reb_off: s.reb_off, reb_def: s.reb_def,
+        steals: s.steals,
+        blocks: s.blocks,
+        turnovers: s.turnovers,
+        fouls: s.fouls,
+      };
+    }) ?? [];
 
   return (
     <main className="px-5 py-8 space-y-5">
@@ -115,6 +149,9 @@ export default async function GameStatsPage({
         </Link>
         <h1 className="text-2xl font-extrabold mt-1">สถิติ 📊</h1>
         <p className="text-sm text-ink-dim">{game.title}</p>
+        {isAdmin && (
+          <p className="text-[11px] text-amber-400 mt-1">⚡ Super Admin — แก้ไข/ลบอะไรก็ได้</p>
+        )}
       </header>
 
       <div className="grid grid-cols-2 gap-2">
@@ -146,6 +183,7 @@ export default async function GameStatsPage({
         teams={(teams ?? []) as TeamOption[]}
         matches={(matches ?? []) as MatchView[]}
         isAdmin={isAdmin}
+        isSuperAdmin={isAdmin}
       />
 
       {matches && matches.length > 0 && (
@@ -207,7 +245,15 @@ export default async function GameStatsPage({
           <p className="text-xs text-ink-faint text-center">
             ทุกคนในก๊วนช่วยกันกดบันทึกได้เลย — เลือกผู้เล่นแล้วแตะปุ่มตามเหตุการณ์
           </p>
-          <StatEntry gameId={gameId} players={players} initial={initial} />
+          <StatEntry gameId={gameId} players={players} initial={initial} defaultMinutes={game.game_duration_minutes ?? 8} />
+          {userMatchStats.length > 0 && (
+            <Card>
+              <CardTitle>แก้ไขสถิติของฉัน</CardTitle>
+              <div className="mt-2">
+                <SelfStatsEditor gameId={gameId} matchStats={userMatchStats} isAdmin={isAdmin} />
+              </div>
+            </Card>
+          )}
         </>
       ) : (
         <Card className="py-12 text-center text-sm text-ink-faint">

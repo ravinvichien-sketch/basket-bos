@@ -23,6 +23,7 @@ const TEAM_PRESETS = [
 function revalidateTeams(gameId: string) {
   revalidatePath(`/games/${gameId}/teams`);
   revalidatePath(`/games/${gameId}`);
+  revalidatePath(`/games/${gameId}/live`);
 }
 
 export async function generateTeams(
@@ -198,7 +199,7 @@ export async function removePlayerFromTeam(
   if (!teams || teams.length === 0) return { error: "ยังไม่มีทีม" };
   if (teams.some((t) => t.locked)) return { error: "ทีมถูกล็อคอยู่" };
 
-  await supabase
+  const { error: delError } = await supabase
     .from("team_members")
     .delete()
     .in(
@@ -206,6 +207,8 @@ export async function removePlayerFromTeam(
       teams.map((t) => t.id)
     )
     .eq("profile_id", profileId);
+
+  if (delError) return { error: "นำออกไม่สำเร็จ" };
 
   revalidateTeams(gameId);
   return {};
@@ -388,4 +391,44 @@ export async function setTeamsLock(gameId: string, locked: boolean) {
   }
 
   revalidateTeams(gameId);
+}
+
+/** เปลี่ยนตัวผู้เล่นระหว่างเกมส์: เอาคนเก่าออกจากทีม แล้วใส่คนใหม่เข้าไป */
+export async function substitutePlayer(
+  gameId: string,
+  oldPlayerId: string,
+  newPlayerId: string,
+  teamId: string
+): Promise<ActionState> {
+  const { supabase, canManage } = await getGameEditorContext(gameId);
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
+
+  const { data: teams } = await supabase
+    .from("teams")
+    .select("id, locked")
+    .eq("game_id", gameId);
+  if (!teams?.some((t) => t.id === teamId)) return { error: "ไม่พบทีม" };
+  if (teams.some((t) => t.locked)) return { error: "ทีมถูกล็อคอยู่" };
+
+  // เอาคนเก่าออกจากทีม
+  await supabase
+    .from("team_members")
+    .delete()
+    .eq("team_id", teamId)
+    .eq("profile_id", oldPlayerId);
+
+  // เอาคนใหม่ออกจากทีมเดิมก่อน (ถ้ามี) แล้วใส่ทีมใหม่
+  await supabase
+    .from("team_members")
+    .delete()
+    .in("team_id", teams.map((t) => t.id))
+    .eq("profile_id", newPlayerId);
+
+  const { error } = await supabase
+    .from("team_members")
+    .insert({ team_id: teamId, profile_id: newPlayerId });
+  if (error) return { error: "เปลี่ยนตัวไม่สำเร็จ" };
+
+  revalidateTeams(gameId);
+  return {};
 }

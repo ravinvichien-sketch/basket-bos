@@ -9,6 +9,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 interface GamePhotoRow {
   id: string;
   storage_path: string;
+  drive_url: string | null;
   caption: string | null;
   uploaded_by: string;
   created_at: string;
@@ -50,8 +51,11 @@ export default async function GamePhotosPage({
       <PhotoUpload gameId={gameId} />
 
       {photos && photos.length > 0 ? (
+        <>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {(photos as GamePhotoRow[]).map((photo) => {
+          {(photos as GamePhotoRow[])
+            .filter((p) => p.storage_path)
+            .map((photo) => {
             const { data: { publicUrl } } = storage.getPublicUrl(photo.storage_path);
             return (
               <div key={photo.id} className="relative group">
@@ -73,6 +77,31 @@ export default async function GamePhotosPage({
             );
           })}
         </div>
+
+        {/* Google Drive links */}
+        {(photos as GamePhotoRow[]).filter((p) => p.drive_url).length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold text-ink-dim">🔗 ลิงก์ Google Drive</h2>
+            <ul className="space-y-1.5">
+              {(photos as GamePhotoRow[])
+                .filter((p) => p.drive_url)
+                .map((item) => (
+                  <li key={item.id}>
+                    <a
+                      href={item.drive_url!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 rounded-xl bg-surface-overlay px-4 py-2.5 text-sm text-court hover:bg-surface-highlight transition"
+                    >
+                      <span className="truncate">{item.drive_url!}</span>
+                      <span className="shrink-0 text-xs text-ink-faint">↗</span>
+                    </a>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )}
+        </>
       ) : (
         <Card className="py-12 text-center text-sm text-ink-faint">
           ยังไม่มีรูปภาพ — อัปโหลดรูปแรกเลย!

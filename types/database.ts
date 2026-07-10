@@ -54,6 +54,8 @@ export interface Group {
   created_by: string | null;
   deleted_at: string | null;
   created_at: string;
+  play_start_time: string | null;
+  play_end_time: string | null;
 }
 
 export interface GroupMember {

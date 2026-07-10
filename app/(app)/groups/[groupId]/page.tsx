@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAdminContext } from "@/features/auth/guards";
-import {
-  GroupManager,
-  type GroupMemberView,
-} from "@/features/groups/components/group-manager";
+import { GroupManager, type GroupMemberView } from "@/features/groups/components/group-manager";
 import { GroupLocationEditor } from "@/features/groups/components/group-location-editor";
 import { GroupLineGroupIdEditor } from "@/features/groups/components/group-line-group-id-editor";
+import { GroupPlayTimeEditor } from "@/features/groups/components/group-play-time-editor";
 import { Card, CardTitle } from "@/components/ui/card";
 import { formatThaiDateTime } from "@/lib/format";
 
@@ -28,7 +26,7 @@ export default async function GroupDetailPage({
     await Promise.all([
       supabase
         .from("groups")
-        .select("id, name, location, location_name, line_group_id, deleted_at")
+        .select("id, name, location, location_name, line_group_id, play_start_time, play_end_time, deleted_at")
         .eq("id", groupId)
         .single(),
       supabase
@@ -90,7 +88,24 @@ export default async function GroupDetailPage({
         </Link>
         <h1 className="text-2xl font-extrabold mt-1">{group.name}</h1>
         <p className="text-sm text-ink-dim">{members.length} สมาชิก</p>
+        {group.play_start_time && group.play_end_time && (
+          <p className="text-sm text-court mt-1 font-semibold">
+            🏀 {group.play_start_time.slice(0, 5)} – {group.play_end_time.slice(0, 5)} น.
+          </p>
+        )}
       </header>
+
+      <Card>
+        <CardTitle>⏰ เวลาเล่น</CardTitle>
+        <div className="mt-2">
+          <GroupPlayTimeEditor
+            groupId={groupId}
+            playStartTime={group.play_start_time}
+            playEndTime={group.play_end_time}
+            canManage={canManage}
+          />
+        </div>
+      </Card>
 
       <Card>
         <CardTitle>📍 สถานที่</CardTitle>

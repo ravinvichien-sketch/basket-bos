@@ -20,17 +20,27 @@ export default async function GamesPage() {
     canCreate = (count ?? 0) > 0;
   }
 
-  // ผู้เล่นดู Session ได้เฉพาะก๊วนที่ตัวเองเป็นสมาชิก (super admin เห็นทั้งหมด)
+  // ผู้เล่นดู Session ได้เฉพาะก๊วนที่ตัวเองเป็นสมาชิก หรือเคยลงชื่อเล่น (super admin เห็นทั้งหมด)
   let groupFilter: string[] | null = null;
   if (!isAdmin) {
-    const { data: myGrp } = await supabase
-      .from("group_members")
-      .select("group_id")
-      .eq("profile_id", user.id);
-    groupFilter = (myGrp ?? []).map((m) => m.group_id);
+    const [{ data: myGrp }, { data: myRegGames }] = await Promise.all([
+      supabase.from("group_members").select("group_id").eq("profile_id", user.id),
+      supabase.from("registrations").select("game_id").eq("profile_id", user.id).neq("status", "cancelled"),
+    ]);
+    const ids = new Set<string>();
+    (myGrp ?? []).forEach((m) => ids.add(m.group_id));
+    if (myRegGames && myRegGames.length > 0) {
+      const gameIds = myRegGames.map((r) => r.game_id);
+      const { data: regGroups } = await supabase
+        .from("games")
+        .select("group_id")
+        .in("id", gameIds);
+      (regGroups ?? []).forEach((g) => ids.add(g.group_id));
+    }
+    groupFilter = [...ids];
   }
 
-  const baseQuery = () => supabase.from("games").select("*").neq("status", "cancelled");
+  const baseQuery = () => supabase.from("games").select("*, groups(name)").neq("status", "cancelled");
   const applyFilter = (q: ReturnType<typeof baseQuery>) => {
     if (groupFilter !== null) return q.in("group_id", groupFilter);
     return q; // super admin — ไม่ filter
@@ -90,6 +100,7 @@ export default async function GamesPage() {
               <GameCard
                 game={game as Game}
                 confirmedCount={counts.get(game.id)}
+                groupName={(game as any).groups?.name ?? null}
               />
               {isAdmin && <AdminGameActions gameId={game.id} />}
             </div>
@@ -115,6 +126,7 @@ export default async function GamesPage() {
               <GameCard
                 game={game as Game}
                 confirmedCount={counts.get(game.id)}
+                groupName={(game as any).groups?.name ?? null}
               />
               {isAdmin && <AdminGameActions gameId={game.id} />}
             </div>

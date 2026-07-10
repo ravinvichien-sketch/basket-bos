@@ -1,10 +1,26 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState, useTransition, useRef, useEffect } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { saveGameStats } from "../actions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+function playClick() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "square";
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.06);
+  } catch {}
+}
 
 export interface StatLine {
   minutes: number;
@@ -56,7 +72,8 @@ type EventKey =
   | "makeFt"
   | "missFt"
   | "ast"
-  | "reb"
+  | "reb_off"
+  | "reb_def"
   | "stl"
   | "blk"
   | "tov"
@@ -70,7 +87,8 @@ const EVENTS: { key: EventKey; label: string; accent?: boolean }[] = [
   { key: "miss3", label: "พลาด 3" },
   { key: "missFt", label: "พลาด FT" },
   { key: "ast", label: "AST" },
-  { key: "reb", label: "REB" },
+  { key: "reb_off", label: "REB รุก" },
+  { key: "reb_def", label: "REB รับ" },
   { key: "stl", label: "STL" },
   { key: "blk", label: "BLK" },
   { key: "tov", label: "TO" },
@@ -107,7 +125,10 @@ function apply(line: StatLine, ev: EventKey): StatLine {
     case "ast":
       s.assists++;
       break;
-    case "reb":
+    case "reb_off":
+      s.reb_off++;
+      break;
+    case "reb_def":
       s.reb_def++;
       break;
     case "stl":
@@ -132,14 +153,23 @@ export function StatEntry({
   gameId,
   players,
   initial,
+  defaultMinutes,
 }: {
   gameId: string;
   players: StatPlayer[];
   initial: Record<string, StatLine>;
+  defaultMinutes?: number;
 }) {
   const [stats, setStats] = useState<Record<string, StatLine>>(() => {
     const map: Record<string, StatLine> = {};
-    for (const p of players) map[p.profileId] = initial[p.profileId] ?? EMPTY;
+    for (const p of players) {
+      const existing = initial[p.profileId];
+      if (existing) {
+        map[p.profileId] = existing;
+      } else {
+        map[p.profileId] = { ...EMPTY, minutes: defaultMinutes ?? 0 };
+      }
+    }
     return map;
   });
   const [selected, setSelected] = useState<string | null>(
@@ -151,12 +181,19 @@ export function StatEntry({
   const [isPending, startTransition] = useTransition();
 
   const line = selected ? stats[selected] : null;
+  const [flashKey, setFlashKey] = useState<string | null>(null);
+  const flashMiss = (key: string) => {
+    setFlashKey(key);
+    setTimeout(() => setFlashKey(null), 200);
+  };
 
   function record(ev: EventKey) {
     if (!selected) return;
     setHistory((h) => [...h.slice(-30), stats]);
     setStats((s) => ({ ...s, [selected]: apply(s[selected], ev) }));
     setMessage(null);
+    playClick();
+    flashMiss(ev);
   }
 
   function undo() {
@@ -283,7 +320,8 @@ export function StatEntry({
                   "h-12 rounded-xl text-sm font-bold transition active:scale-95",
                   ev.accent
                     ? "bg-court text-white"
-                    : "bg-surface-overlay text-ink hover:bg-surface-overlay/70"
+                    : "bg-surface-overlay text-ink hover:bg-surface-overlay/70",
+                  flashKey === ev.key && "animate-pulse-fast"
                 )}
               >
                 {ev.label}

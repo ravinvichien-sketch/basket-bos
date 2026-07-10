@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getGameEditorContext } from "@/features/auth/guards";
 import { setTeamsLock, fillRemainingTeams } from "@/features/teams/actions";
+import { AdminAddForm } from "@/features/registration/components/admin-add-form";
 import { GenerateForm } from "@/features/teams/components/generate-form";
 import {
   TeamsBoard,
@@ -27,7 +28,7 @@ export default async function TeamsPage({
 
   const [{ data: game }, { data: teamsData }, { data: confirmedRegs }] =
     await Promise.all([
-      supabase.from("games").select("id, title").eq("id", gameId).single(),
+      supabase.from("games").select("id, title, group_id").eq("id", gameId).single(),
       supabase
         .from("teams")
         .select(
@@ -44,6 +45,26 @@ export default async function TeamsPage({
         .eq("status", "confirmed")
         .order("registered_at"),
     ]);
+  if (!game) notFound();
+
+  // Candidates for admin-add: group members not yet registered
+  let candidates: { id: string; nickname: string }[] = [];
+  if (game.group_id) {
+    const { data: gmRows } = await supabase
+      .from("group_members")
+      .select("profile_id")
+      .eq("group_id", game.group_id);
+    const memberIds = new Set((gmRows ?? []).map((r) => r.profile_id));
+    const { data: allProfiles } = await supabase
+      .from("profiles")
+      .select("id, nickname")
+      .eq("onboarded", true)
+      .order("nickname");
+    const registeredIds = new Set((confirmedRegs ?? []).map((r) => r.profile_id));
+    candidates = (allProfiles ?? [])
+      .filter((p) => memberIds.has(p.id) && !registeredIds.has(p.id))
+      .map((p) => ({ id: p.id, nickname: p.nickname }));
+  }
   if (!game) notFound();
 
   const teams: TeamView[] = (teamsData ?? []).map((t) => ({
@@ -116,6 +137,13 @@ export default async function TeamsPage({
             🎲 สุ่มเฉพาะ {unassigned.length} คนที่ยังไม่มีทีม
           </button>
         </form>
+      )}
+
+      {canManage && candidates.length > 0 && !locked && (
+        <Card>
+          <div className="text-sm font-semibold mb-2">เพิ่มผู้เล่นอื่นที่ยังไม่ลงทะเบียน</div>
+          <AdminAddForm gameId={gameId} candidates={candidates} />
+        </Card>
       )}
 
       {hasTeams ? (

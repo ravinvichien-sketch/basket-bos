@@ -40,6 +40,7 @@ export async function POST(req: Request) {
     const isStatus = /^(สถานะ|status)\b/i.test(text2);
     const isLeave = /^(ถอน|ถอนตัว|leave)\b/i.test(text2);
     const isJoin = /^(ลงชื่อ|join)\b/i.test(text2);
+    const isMaybe = /^(ไม่แน่นอน|maybe)\b/i.test(text2);
 
     let replyText = "";
 
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
         "",
         "`ลงชื่อ` หรือ `join` — ลงชื่อ Session ถัดไป",
         "`ลงชื่อ ชื่อเกม` — ลงชื่อ Session ที่ระบุ",
+        "`ไม่แน่นอน` หรือ `maybe` — ลงชื่อแบบไม่แน่นอน",
         "`คิว` หรือ `roster` — ดูรายชื่อ Session ล่าสุด",
         "`คิว ชื่อเกม` — ดูรายชื่อ Session ที่ระบุ",
         "`ถอน` หรือ `leave` — ถอนตัวจาก Session ล่าสุด",
@@ -92,13 +94,20 @@ export async function POST(req: Request) {
       } else {
         const { data: regs } = await admin
           .from("registrations")
-          .select("status, profiles!profile_id(nickname)")
+          .select("status, profiles!profile_id(nickname, is_guest), ref:profiles!ref_profile_id(nickname)")
           .eq("game_id", game.id)
           .in("status", ["confirmed", "waitlisted", "tentative"])
           .order("registered_at", { ascending: true });
 
-        const nick = (r: { profiles: unknown }) =>
-          (r.profiles as { nickname?: string } | null)?.nickname ?? "ผู้เล่น";
+        const nick = (r: { profiles: unknown; ref?: unknown }) => {
+          const p = r.profiles as { nickname?: string; is_guest?: boolean } | null;
+          const ref = r.ref as { nickname?: string } | null;
+          const base = p?.nickname ?? "ผู้เล่น";
+          if (p?.is_guest && ref?.nickname) {
+            return `${base} (แขกของ ${ref.nickname})`;
+          }
+          return base;
+        };
         const confirmed = (regs ?? []).filter((r) => r.status === "confirmed").map(nick);
         const tentative = (regs ?? []).filter((r) => r.status === "tentative").map(nick);
         const waitlist = (regs ?? []).filter((r) => r.status === "waitlisted").map(nick);
@@ -115,10 +124,13 @@ export async function POST(req: Request) {
         }
       }
     } else {
-      replyText = "❌ ไม่รู้จักคำสั่ง — พิมพ์ `ช่วยเหลือ` เพื่อดูคำสั่ง";
+      replyText = "";
     }
 
-    // Push to group
+    // Push to group only if there's something to say
+    if (!replyText) {
+      return NextResponse.json({ ok: true });
+    }
     const pushRes = await fetch("https://api.line.me/v2/bot/message/push", {
       method: "POST",
       headers: {

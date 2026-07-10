@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAdminContext } from "@/features/auth/guards";
 import { CreateGroupForm } from "@/features/groups/components/create-group-form";
+import { PendingGroupsCard } from "@/features/groups/components/pending-groups-card";
 import { Card, CardTitle } from "@/components/ui/card";
 
 export default async function GroupsPage() {
@@ -16,7 +17,7 @@ export default async function GroupsPage() {
   const [{ data: groups }, { data: myMemberships }] = await Promise.all([
     supabase
       .from("groups")
-      .select("id, name")
+      .select("id, name, status, created_by")
       .is("deleted_at", null)
       .order("created_at"),
     supabase
@@ -27,10 +28,15 @@ export default async function GroupsPage() {
 
   const myGroupIds = new Set((myMemberships ?? []).map((m) => m.group_id));
   const groupList = isAdmin
-    ? (groups ?? [])
-    : (groups ?? []).filter((g) => myGroupIds.has(g.id));
+    ? (groups ?? []).filter((g) => g.status !== "rejected")
+    : (groups ?? []).filter(
+        (g) => g.status === "approved" || (g.status === "pending" && g.created_by === user.id)
+      );
 
-  // Member counts — only for visible groups
+  const pendingForAdmin = isAdmin
+    ? (groups ?? []).filter((g) => g.status === "pending")
+    : [];
+
   const memberCounts = new Map<string, number>();
   if (groupList.length > 0) {
     const { data: memberRows } = await supabase
@@ -45,6 +51,17 @@ export default async function GroupsPage() {
     }
   }
 
+  const STATUS_BADGE: Record<string, string> = {
+    pending: "bg-amber-500/15 text-amber-400",
+    approved: "bg-emerald-500/15 text-emerald-400 hidden",
+    rejected: "bg-red-500/15 text-red-400",
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    pending: "รออนุมัติ",
+    approved: "อนุมัติแล้ว",
+    rejected: "ถูกปฏิเสธ",
+  };
+
   return (
     <main className="px-5 py-8 space-y-5">
       <header>
@@ -53,6 +70,11 @@ export default async function GroupsPage() {
           ก๊วนทั้งหมดในระบบ — แตะเพื่อดูสมาชิกและจัดการ
         </p>
       </header>
+
+      {/* Admin: pending groups */}
+      {pendingForAdmin.length > 0 && (
+        <PendingGroupsCard groups={pendingForAdmin} />
+      )}
 
       {isAdmin && (
         <Link
@@ -68,6 +90,7 @@ export default async function GroupsPage() {
           <CardTitle>สร้างก๊วนใหม่</CardTitle>
           <p className="text-xs text-ink-faint mt-1">
             ต้องมี LINE Group ก่อน — ผู้ก่อตั้งจะเป็นแอดมินก๊วนโดยอัตโนมัติ
+            เมื่อ Super Admin อนุมัติแล้ว
           </p>
           <div className="mt-3">
             <CreateGroupForm />
@@ -90,6 +113,7 @@ export default async function GroupsPage() {
                   <p className="font-bold">{g.name}</p>
                   <p className="text-xs text-ink-faint">
                     {memberCounts.get(g.id) ?? 0} สมาชิก
+                    {g.status === "pending" && " · รอ Super Admin อนุมัติ"}
                   </p>
                 </div>
                 <span className="text-ink-faint">›</span>

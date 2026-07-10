@@ -4,6 +4,7 @@ import { getAdminContext } from "@/features/auth/guards";
 import {
   LiveMatch,
   type LiveTeam,
+  type LivePlayer,
 } from "@/features/stats/components/live-match";
 import { Card } from "@/components/ui/card";
 
@@ -13,13 +14,14 @@ export default async function LiveMatchPage({
   params: Promise<{ gameId: string }>;
 }) {
   const { gameId } = await params;
-  const { supabase, user } = await getAdminContext();
+  const { supabase, user, isAdmin } = await getAdminContext();
 
   const [
     { data: game },
     { data: teamsData },
     { data: existingMatches },
     { data: statKeepers },
+    { data: sessionRegs },
   ] = await Promise.all([
     supabase
       .from("games")
@@ -42,11 +44,19 @@ export default async function LiveMatchPage({
       .from("game_stat_keepers")
       .select("profile_id")
       .eq("game_id", gameId),
+    supabase
+      .from("registrations")
+      .select("profile_id, profiles!profile_id(nickname, avatar_url)")
+      .eq("game_id", gameId)
+      .eq("status", "confirmed"),
   ]);
   if (!game) notFound();
 
   // Determine user role
   let userRole: "admin" | "statKeeper" | "viewer" = "viewer";
+  if (isAdmin) {
+    userRole = "admin";
+  }
   const keeperIds = new Set((statKeepers ?? []).map((k) => k.profile_id));
   if (keeperIds.has(user.id)) {
     userRole = "statKeeper";
@@ -80,6 +90,20 @@ export default async function LiveMatchPage({
     })),
   }));
 
+  const teamMemberIds = new Set(
+    teams.flatMap((t) => t.members.map((m) => m.profileId))
+  );
+  const sessionPlayers: LivePlayer[] = ((sessionRegs ?? []) as unknown as {
+    profile_id: string;
+    profiles: { nickname: string; avatar_url: string | null } | null;
+  }[])
+    .filter((r) => !teamMemberIds.has(r.profile_id))
+    .map((r) => ({
+      profileId: r.profile_id,
+      nickname: r.profiles?.nickname ?? "ผู้เล่น",
+      avatarUrl: r.profiles?.avatar_url ?? null,
+    }));
+
   const duration = (game.game_duration_minutes as number) ?? 8;
 
   return (
@@ -101,6 +125,7 @@ export default async function LiveMatchPage({
           existingMatches={(existingMatches ?? []) as { id: string; status: string }[]}
           userId={user.id}
           userRole={userRole}
+          sessionPlayers={sessionPlayers}
         />
       ) : (
         <Card className="py-12 text-center text-sm text-ink-faint space-y-3">

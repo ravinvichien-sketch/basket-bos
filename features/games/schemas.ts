@@ -12,8 +12,6 @@ export const gameSchema = z
     location: z.string().trim().min(1, "กรุณาใส่สถานที่").max(200),
     starts_at: bangkokDateTime,
     ends_at: bangkokDateTime,
-    reg_opens_at: bangkokDateTime,
-    reg_deadline: bangkokDateTime,
     fee_mode: z.enum(["split", "fixed"]),
     court_fee_thb: z.coerce
       .number()
@@ -30,6 +28,12 @@ export const gameSchema = z
       .int()
       .min(0, "สำรองต้องไม่ติดลบ")
       .max(50, "สำรองไม่เกิน 50 คน"),
+    players_per_team: z.coerce
+      .number()
+      .int()
+      .min(1, "ต้องมีอย่างน้อย 1 คนต่อทีม")
+      .max(20, "ไม่เกิน 20 คนต่อทีม")
+      .default(5),
     notes: z.string().trim().max(500).optional().or(z.literal("")),
     game_duration_minutes: z.coerce
       .number()
@@ -48,14 +52,6 @@ export const gameSchema = z
   .refine((d) => d.ends_at > d.starts_at, {
     message: "เวลาจบต้องอยู่หลังเวลาเริ่ม",
     path: ["ends_at"],
-  })
-  .refine((d) => d.reg_deadline <= d.starts_at, {
-    message: "เดดไลน์รับสมัครต้องไม่เกินเวลาเริ่ม Session",
-    path: ["reg_deadline"],
-  })
-  .refine((d) => d.reg_opens_at < d.reg_deadline, {
-    message: "เวลาเปิดรับสมัครต้องอยู่ก่อนเดดไลน์",
-    path: ["reg_opens_at"],
   });
 
 export type GameInput = z.infer<typeof gameSchema>;

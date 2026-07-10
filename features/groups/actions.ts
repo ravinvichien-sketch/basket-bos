@@ -38,10 +38,16 @@ export async function createGroup(
 
   const { supabase } = await getAdminContext();
 
-  const { data, error } = await supabase.rpc("create_group", {
+  const playStart = formData.get("play_start_time") as string;
+  const playEnd = formData.get("play_end_time") as string;
+  const rpcParams: Record<string, string> = {
     p_name: name,
     p_line_group_id: lineGroupId,
-  });
+  };
+  if (playStart) rpcParams.p_play_start_time = playStart;
+  if (playEnd) rpcParams.p_play_end_time = playEnd;
+
+  const { data, error } = await supabase.rpc("create_group", rpcParams);
   console.log("RPC result", { data, error });
   if (error?.message?.includes("NOT_ONBOARDED")) {
     return { error: "กรุณาลงทะเบียนให้สมบูรณ์ก่อนตั้งก๊วน" };
@@ -476,6 +482,54 @@ export async function respondToDreamTeamInvite(
   return {};
 }
 
+/** แอดมินก๊วน/แอดมินเต็มระบบ: ตั้งชื่อเล่นให้สมาชิกในก๊วน */
+export async function setMemberNickname(
+  groupId: string,
+  profileId: string,
+  nickname: string
+): Promise<ActionState> {
+  const { supabase, user, isAdmin } = await getAdminContext();
+  if (!(await canManageGroup(supabase, groupId, user.id, isAdmin))) {
+    return { error: "คุณไม่มีสิทธิ์จัดการก๊วนนี้" };
+  }
+
+  const n = nickname.trim();
+  if (!n || n.length > 30) return { error: "ชื่อเล่น 1–30 ตัวอักษร" };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ nickname: n })
+    .eq("id", profileId);
+  if (error) return { error: "เปลี่ยนชื่อไม่สำเร็จ" };
+
+  revalidateGroups(groupId);
+  return {};
+}
+
+/** แอดมินก๊วน/แอดมินเต็มระบบ: ตั้งค่าเวลาเล่นประจำของก๊วน */
+export async function setGroupPlayTime(
+  groupId: string,
+  playStartTime: string,
+  playEndTime: string
+): Promise<ActionState> {
+  const { supabase, user, isAdmin } = await getAdminContext();
+  if (!(await canManageGroup(supabase, groupId, user.id, isAdmin))) {
+    return { error: "คุณไม่มีสิทธิ์จัดการก๊วนนี้" };
+  }
+
+  const { error } = await supabase
+    .from("groups")
+    .update({
+      play_start_time: playStartTime || null,
+      play_end_time: playEndTime || null,
+    })
+    .eq("id", groupId);
+  if (error) return { error: "บันทึกเวลาไม่สำเร็จ" };
+
+  revalidateGroups(groupId);
+  return {};
+}
+
 export async function removeDreamTeamMember(
   teamId: string,
   profileId: string
@@ -501,5 +555,39 @@ export async function removeDreamTeamMember(
 
   revalidatePath(`/players/${user.id}`);
   revalidatePath("/profile");
+  return {};
+}
+
+/** Super admin อนุมัติก๊วน */
+export async function approveGroup(
+  groupId: string
+): Promise<ActionState> {
+  const { supabase, isAdmin } = await getAdminContext();
+  if (!isAdmin) return { error: "เฉพาะ Super Admin เท่านั้น" };
+
+  const { error } = await supabase
+    .from("groups")
+    .update({ status: "approved", reviewed_at: new Date().toISOString() })
+    .eq("id", groupId);
+  if (error) return { error: "อนุมัติไม่สำเร็จ" };
+
+  revalidateGroups(groupId);
+  return {};
+}
+
+/** Super admin ปฏิเสธก๊วน */
+export async function rejectGroup(
+  groupId: string
+): Promise<ActionState> {
+  const { supabase, isAdmin } = await getAdminContext();
+  if (!isAdmin) return { error: "เฉพาะ Super Admin เท่านั้น" };
+
+  const { error } = await supabase
+    .from("groups")
+    .update({ status: "rejected", reviewed_at: new Date().toISOString() })
+    .eq("id", groupId);
+  if (error) return { error: "ปฏิเสธไม่สำเร็จ" };
+
+  revalidateGroups(groupId);
   return {};
 }

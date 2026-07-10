@@ -45,20 +45,20 @@ export default async function EditGamePage({
         action={boundUpdate}
         groups={groups ?? []}
         submitLabel="บันทึกการแก้ไข"
-        defaults={{
-          group_id: game.group_id ?? undefined,
-          title: game.title,
-          location: game.location,
-          starts_at: toBangkokInput(game.starts_at),
-          ends_at: toBangkokInput(game.ends_at),
-          reg_opens_at: toBangkokInput(game.reg_opens_at),
-          reg_deadline: toBangkokInput(game.reg_deadline),
-          fee_mode: game.fee_mode ?? "split",
-          court_fee_thb: game.court_fee_thb,
-          max_players: game.max_players,
-          max_waitlist: game.max_waitlist ?? 5,
-          notes: game.notes ?? undefined,
-        }}
+          defaults={{
+            group_id: game.group_id ?? undefined,
+            title: game.title,
+            location: game.location,
+            starts_at: toBangkokInput(game.starts_at),
+            ends_at: toBangkokInput(game.ends_at),
+            fee_mode: game.fee_mode ?? "split",
+            court_fee_thb: game.court_fee_thb,
+            max_players: game.max_players,
+            max_waitlist: game.max_waitlist ?? 5,
+            players_per_team: game.players_per_team ?? 5,
+            game_duration_minutes: game.game_duration_minutes ?? 8,
+            notes: game.notes ?? undefined,
+          }}
       />
     </main>
   );

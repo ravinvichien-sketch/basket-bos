@@ -2,12 +2,29 @@
 
 export interface SeasonStats {
   games_played: number;
+  total_minutes: number;
+  total_points: number;
+  total_fgm: number;
+  total_fga: number;
+  total_tpm: number;
+  total_tpa: number;
+  total_ftm: number;
+  total_fta: number;
+  total_reb_off: number;
+  total_reb_def: number;
+  total_assists: number;
+  total_steals: number;
+  total_blocks: number;
+  total_turnovers: number;
+  total_fouls: number;
+  total_plus_minus: number;
   ppg: number;
   rpg: number;
   apg: number;
   spg: number;
   bpg: number;
   fg_pct: number | null;
+  tp_pct: number | null;
   mvp_count: number;
 }
 

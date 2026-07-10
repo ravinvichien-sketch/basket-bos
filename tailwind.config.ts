@@ -33,6 +33,9 @@ const config: Config = {
       borderRadius: {
         xl2: "1.25rem",
       },
+      animation: {
+        "pulse-fast": "pulse 0.2s ease-in-out",
+      },
     },
   },
   plugins: [],

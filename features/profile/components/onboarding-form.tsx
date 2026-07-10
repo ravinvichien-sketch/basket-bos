@@ -130,7 +130,7 @@ export function OnboardingForm({
 
       <div>
         <Label>
-          ก๊วนที่เล่นอยู่ <span className="text-court">*(เลือกอย่างน้อย 1 ก๊วน)</span>
+          ก๊วนที่เล่นอยู่ <span className="text-ink-faint">(เลือกหรือข้ามไปก่อนก็ได้)</span>
         </Label>
         <input type="hidden" name="group_ids" value={JSON.stringify(groupIds)} />
         {groups.length === 0 ? (
