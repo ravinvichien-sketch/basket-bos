@@ -417,7 +417,7 @@ export default async function GameDetailPage({
         )}
       </Card>
 
-      {status !== "draft" && status !== "completed" && (
+      {status !== "draft" && (
         <div className="grid grid-cols-2 gap-3">
           {game.court_fee_thb > 0 && (
             <Link
@@ -439,12 +439,21 @@ export default async function GameDetailPage({
           >
             📊 สถิติ
           </Link>
-          <Link
-            href={`/games/${gameId}/live`}
-            className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
-          >
-            🔴 จดสกอร์สด
-          </Link>
+          {status === "completed" ? (
+            <Link
+              href={`/games/${gameId}/my-stats`}
+              className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-court font-semibold text-sm text-white"
+            >
+              📊 สถิติของฉัน
+            </Link>
+          ) : (
+            <Link
+              href={`/games/${gameId}/live`}
+              className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
+            >
+              🔴 จดสกอร์สด
+            </Link>
+          )}
           <Link
             href={`/games/${gameId}/videos`}
             className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
