@@ -18,6 +18,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { formatThaiDateTime, formatTimeRange, formatBaht } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { GameStatus } from "@/types/database";
+import { CompletedSessionSummary } from "@/features/stats/components/completed-session-summary";
 
 interface RegRow {
   id: string;
@@ -414,7 +415,7 @@ export default async function GameDetailPage({
         )}
       </Card>
 
-      {status !== "draft" && (
+      {status !== "draft" && status !== "completed" && (
         <div className="grid grid-cols-2 gap-3">
           {game.court_fee_thb > 0 && (
             <Link
@@ -429,12 +430,6 @@ export default async function GameDetailPage({
             className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
           >
             ⚖️ จัดทีม
-          </Link>
-          <Link
-            href={`/games/${gameId}/my-stats`}
-            className="flex h-12 items-center justify-center gap-2 rounded-xl2 bg-surface-raised border border-white/5 font-semibold text-sm hover:border-court/40 transition"
-          >
-            🏀 สถิติฉัน
           </Link>
           <Link
             href={`/games/${gameId}/stats`}
@@ -461,6 +456,15 @@ export default async function GameDetailPage({
             📷 รูปภาพ
           </Link>
         </div>
+      )}
+
+      {status === "completed" && (
+        <CompletedSessionSummary
+          gameId={gameId}
+          gameTitle={game.title as string}
+          gameLocation={game.location as string}
+          gameDate={game.starts_at as string}
+        />
       )}
 
       {activelyPlaying && (
