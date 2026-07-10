@@ -121,18 +121,45 @@ export async function GET(
     if (!hfToken) {
       return Response.json({ error: "HUGGINGFACE_TOKEN not configured. Set it in Vercel env vars" }, { status: 501 });
     }
-    const response = await fetch(
-      "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-3.5-large",
+
+    let response = await fetch(
+      "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1",
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${hfToken}` },
         body: JSON.stringify({
           inputs: prompt,
-          parameters: { negative_prompt: "nsfw, low quality, blurry, distorted face, ugly, deformed", num_inference_steps: 20, guidance_scale: 7.5, width: 1024, height: 1024 },
+          parameters: { negative_prompt: "nsfw, low quality, blurry, distorted face, ugly, deformed", num_inference_steps: 20, guidance_scale: 7.5, width: 512, height: 512 },
         }),
       }
     );
-    if (!response.ok) { const e = await response.text(); console.error("HuggingFace error:", e); return Response.json({ error: "AI failed" }, { status: 500 }); }
+
+    // If model is loading (HuggingFace returns 503), retry once after a delay
+    if (response.status === 503) {
+      await new Promise(r => setTimeout(r, 5000));
+      response = await fetch(
+        "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${hfToken}` },
+          body: JSON.stringify({
+            inputs: prompt,
+            parameters: { negative_prompt: "nsfw, low quality, blurry, distorted face, ugly, deformed", num_inference_steps: 20, guidance_scale: 7.5, width: 512, height: 512 },
+          }),
+        }
+      );
+    }
+
+    if (!response.ok) {
+      const e = await response.text();
+      return Response.json({ error: "HuggingFace API error, check your token or try again later" }, { status: 500 });
+    }
+
+    const contentType = response.headers.get("content-type");
+    if (contentType?.includes("application/json")) {
+      const json = await response.json();
+      return Response.json({ error: json.error || "HuggingFace returned unexpected response" }, { status: 500 });
+    }
     const imageBlob = await response.blob();
     return await uploadAndSave(imageBlob, admin, gameId, profileId);
   } catch (err) {
