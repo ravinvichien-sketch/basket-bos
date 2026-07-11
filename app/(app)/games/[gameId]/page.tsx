@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { tryGetUser } from "@/features/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { adminRemovePlayer } from "@/features/registration/actions";
-import { changeGameStatus } from "@/features/games/actions";
+import { changeGameStatus, startMatchSession } from "@/features/games/actions";
 import { GAME_STATUS_LABELS, GAME_STATUS_STYLES, STATUS_TRANSITIONS, TRANSITION_LABELS } from "@/features/games/constants";
 import { JoinControls } from "@/features/registration/components/join-controls";
 import { RealtimeRegistrations } from "@/features/registration/components/realtime-registrations";
@@ -476,6 +476,17 @@ export default async function GameDetailPage({
           gameLocation={game.location as string}
           gameDate={game.starts_at as string}
         />
+      )}
+
+      {canManage && confirmed.length > 0 && ["open", "closed"].includes(status) && (
+        <form action={startMatchSession.bind(null, gameId)}>
+          <button
+            type="submit"
+            className="w-full flex h-14 items-center justify-center gap-3 rounded-xl2 bg-court font-bold text-base text-white shadow-lg shadow-court/30 hover:bg-court-dark transition active:scale-[0.98]"
+          >
+            🏀 เริ่มต้นแข่งขัน
+          </button>
+        </form>
       )}
 
       {activelyPlaying && (

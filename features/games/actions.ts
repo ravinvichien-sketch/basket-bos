@@ -163,6 +163,29 @@ export async function changeGameStatus(gameId: string, next: GameStatus) {
   revalidatePath("/dashboard");
 }
 
+/** เริ่มต้นแข่งขัน: เปลี่ยนสถานะเป็น in_progress แล้วพาไปหน้าจดสกอร์สด */
+export async function startMatchSession(gameId: string) {
+  const { supabase, canManage } = await getGameEditorContext(gameId);
+  if (!canManage) return;
+
+  const { data: game } = await supabase
+    .from("games")
+    .select("status")
+    .eq("id", gameId)
+    .single();
+  if (!game) return;
+
+  const allowed = STATUS_TRANSITIONS[game.status as GameStatus] ?? [];
+  if (!allowed.includes("in_progress")) return;
+
+  await supabase.from("games").update({ status: "in_progress" }).eq("id", gameId);
+
+  revalidatePath("/games");
+  revalidatePath(`/games/${gameId}`);
+  revalidatePath("/dashboard");
+  redirect(`/games/${gameId}/live`);
+}
+
 /** มอบ/คืนสิทธิ์คุม Session นี้ชั่วคราว (ปล่อย null = คืน) — เฉพาะแอดมินตัวจริงของ Session */
 export async function setActingAdmin(
   gameId: string,
