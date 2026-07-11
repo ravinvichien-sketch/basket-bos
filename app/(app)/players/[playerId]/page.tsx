@@ -1,7 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getAdminContext } from "@/features/auth/guards";
 import { computeOvr, tierOf, type SeasonStats } from "@/features/stats/lib/ratings";
+import { TIER_LABELS, TIER_COLORS } from "@/features/stats/lib/legend-cards";
 import { CardViewToggle } from "@/features/stats/components/card-view-toggle";
 import { ShareCardButton } from "@/features/stats/components/share-card-button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -24,7 +26,7 @@ export default async function PlayerPage({
   const { playerId } = await params;
   const { supabase, user } = await getAdminContext();
 
-  const [{ data: profile }, { data: positions }, { data: season }, { data: log }] =
+  const [{ data: profile }, { data: positions }, { data: season }, { data: log }, { data: cards }] =
     await Promise.all([
       supabase.from("profiles").select("*").eq("id", playerId).single(),
       supabase
@@ -43,7 +45,20 @@ export default async function PlayerPage({
         .eq("profile_id", playerId)
         .order("created_at", { ascending: false })
         .limit(5),
+      supabase
+        .from("player_card_generations")
+        .select("id, card_url, nba_player_name, nba_player_tier, nba_player_image_url, created_at, games!inner(title)")
+        .eq("profile_id", playerId)
+        .not("card_url", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(20),
     ]);
+
+  const cardRows = (cards ?? []) as unknown as {
+    id: string; card_url: string;
+    nba_player_name: string | null; nba_player_tier: string | null; nba_player_image_url: string | null;
+    created_at: string; games: { title: string }[];
+  }[];
   if (!profile) notFound();
 
   const isMe = playerId === user.id;
@@ -383,6 +398,50 @@ export default async function PlayerPage({
               );
             })}
           </ul>
+        </Card>
+      )}
+
+      {(cardRows).length > 0 && (
+        <Card>
+          <CardTitle>🃏 คอลเลกชันการ์ดตำนาน</CardTitle>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {cardRows.map((c) => {
+              const tier = (c.nba_player_tier || "solid") as keyof typeof TIER_LABELS;
+              return (
+                <a
+                  key={c.id}
+                  href={c.card_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative rounded-xl2 overflow-hidden border border-white/10 hover:border-court/40 transition"
+                >
+                  <Image
+                    src={c.card_url}
+                    alt={c.nba_player_name ?? "Card"}
+                    width={360}
+                    height={450}
+                    className="w-full object-cover"
+                  />
+                  {c.nba_player_name && (
+                    <div className="absolute top-2 left-2 right-2 flex items-center gap-1.5 rounded-lg bg-black/70 px-2 py-1 backdrop-blur-sm">
+                      <span className="text-[10px] font-bold truncate text-white">
+                        {c.nba_player_name}
+                      </span>
+                      <span
+                        className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold"
+                        style={{ backgroundColor: `${TIER_COLORS[tier]}33`, color: TIER_COLORS[tier] }}
+                      >
+                        {TIER_LABELS[tier]}
+                      </span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/60 px-2 py-1 backdrop-blur-sm">
+                    <p className="text-[9px] text-white/80 truncate">{c.games[0]?.title}</p>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
         </Card>
       )}
 

@@ -89,18 +89,17 @@ export function PlayerCardGenerator({
     setError(null);
 
     try {
-      // Step 1: Generate AI image if not already done
-      if (!existingCard?.ai_image_url) {
-        setStep("กำลังสร้างรูปด้วย AI... (ใช้เวลาประมาณ 30 วินาที)");
-        const aiRes = await fetch(`/api/ai-player-image/${gameId}/${profileId}`);
-        const aiData = await aiRes.json();
-        if (!aiRes.ok) throw new Error(aiData.error ?? "สร้างรูป AI ไม่สำเร็จ");
+      // Step 1: Generate card with legend
+      setStep("กำลังสุ่มการ์ดตำนาน...");
+      const res = await fetch(`/api/session-card/${gameId}/${profileId}?nba=1`);
+      if (!res.ok) {
+        let detail = "สร้างการ์ดไม่สำเร็จ";
+        try {
+          const errBody = await res.json();
+          if (errBody.error) detail = errBody.error;
+        } catch {}
+        throw new Error(detail);
       }
-
-      // Step 2: Generate card with AI image as background
-      setStep("กำลังสร้างการ์ด...");
-      const res = await fetch(`/api/session-card/${gameId}/${profileId}?ai=1`);
-      if (!res.ok) throw new Error("สร้างการ์ดไม่สำเร็จ");
 
       const blob = await res.blob();
       const file = new File([blob], `session-card-${gameId}.png`, {
@@ -187,7 +186,8 @@ export function PlayerCardGenerator({
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-dim">
-        ให้ AI สร้างการ์ดรูปนักบาสแนว NBA พร้อมสถิติของคุณใน Session นี้ (สร้างได้ครั้งเดียว)
+        สุ่มการ์ดตำนานจากสถิติที่คุณทำได้ใน Session นี้ (สร้างได้ครั้งเดียว)
+        {totals.points < 10 && " · ถ้าโชคดีมีลุ้นการ์ดระดับตำนาน 5%!"}
       </p>
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="rounded-lg bg-surface-overlay/50 p-3 text-center">
@@ -213,7 +213,7 @@ export function PlayerCardGenerator({
         disabled={busy}
         className="w-full rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 py-3 text-sm font-semibold text-white hover:opacity-90 transition disabled:opacity-50"
       >
-        {busy ? step ?? "กำลังสร้าง..." : "🎴 ให้ AI สร้างการ์ด"}
+        {busy ? step ?? "กำลังสุ่ม..." : "🎴 สุ่มการ์ดตำนาน"}
       </button>
       {error && (
         <p className="rounded-xl bg-red-500/10 text-red-400 text-sm px-4 py-3 text-center">

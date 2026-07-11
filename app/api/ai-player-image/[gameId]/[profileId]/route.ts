@@ -61,10 +61,10 @@ export async function GET(
   let actionPhrase: string;
   let mood: string;
   if (isStar) {
-    actionPhrase = "dunking powerfully in an NBA game with intense action, confetti falling, crowd cheering";
+    actionPhrase = "dunking powerfully in an intense basketball game, confetti falling, crowd cheering";
     mood = "epic, cinematic lighting, dramatic";
   } else if (isGood) {
-    actionPhrase = "shooting a three-pointer in an NBA game, focused expression, dynamic pose";
+    actionPhrase = "shooting a three-pointer in a basketball game, focused expression, dynamic pose";
     mood = "dynamic, energetic, vibrant";
   } else {
     actionPhrase = "playing basketball casually in a local court, dribbling, relaxed pose";
@@ -76,7 +76,7 @@ export async function GET(
     ? "athletic basketball player"
     : `athletic ${genderHint} basketball player`;
 
-  const prompt = `NBA-style basketball player card illustration, ${avatarDesc} resembling a ${genderHint} player with ${profile.nickname}'s features (${profile.height_cm ?? 180}cm tall), ${actionPhrase}. The player wears a basketball jersey, ${mood}, digital art style, vibrant colors, full body action shot, white background with subtle gradient.`;
+  const prompt = `Professional basketball player card illustration, ${avatarDesc} resembling a ${genderHint} player with ${profile.nickname}'s features (${profile.height_cm ?? 180}cm tall), ${actionPhrase}. The player wears a plain basketball jersey with no logos, ${mood}, digital art style, vibrant colors, full body action shot, white background with subtle gradient.`;
 
   try {
     const model = process.env.AI_IMAGE_MODEL || "huggingface";

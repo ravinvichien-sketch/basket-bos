@@ -3,14 +3,14 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Basket Bos",
-  description: "จองคิว จัดทีม จ่ายค่าสนาม และเก็บสถิติแบบ NBA สำหรับก๊วนบาสของคุณ",
+  description: "จองคิว จัดทีม จ่ายค่าสนาม และเก็บสถิติระดับโปรสำหรับก๊วนบาสของคุณ",
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",
   },
   openGraph: {
     title: "Basket Bos",
-    description: "จองคิว จัดทีม จ่ายค่าสนาม และเก็บสถิติแบบ NBA สำหรับก๊วนบาสของคุณ",
+    description: "จองคิว จัดทีม จ่ายค่าสนาม และเก็บสถิติระดับโปรสำหรับก๊วนบาสของคุณ",
     images: ["/logo.png"],
   },
 };

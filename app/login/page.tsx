@@ -29,7 +29,7 @@ export default async function LoginPage({
         <p className="mt-3 text-ink-dim leading-relaxed">
           จองคิวลงเล่น จัดทีมแฟร์ๆ จ่ายค่าสนามสแกนเดียว
           <br />
-          และเก็บสถิติแบบ NBA ของก๊วนคุณ
+          และเก็บสถิติระดับโปรของก๊วนคุณ
         </p>
 
         {error && (
