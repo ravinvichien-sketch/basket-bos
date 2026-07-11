@@ -123,6 +123,7 @@ export function LiveMatch({
   const [selectedSwapId, setSelectedSwapId] = useState<string | null>(null);
   const [substitutingFor, setSubstitutingFor] = useState<{ playerId: string; teamId: string } | null>(null);
   const [eventHistory, setEventHistory] = useState<{ playerId: string; ev: EventKey }[]>([]);
+  const [redoHistory, setRedoHistory] = useState<{ playerId: string; ev: EventKey }[]>([]);
   const [dbStats, setDbStats] = useState<
     Record<string, Record<string, number>>
   >({});
@@ -445,7 +446,10 @@ export function LiveMatch({
     startTransition(async () => {
       const res = await recordMatchEvent(currentMatchId, gameId, playerId, ev);
       if (res.error) setMessage(res.error);
-      else setEventHistory((prev) => [...prev.slice(-4), { playerId, ev }]);
+      else {
+        setEventHistory((prev) => [...prev.slice(-4), { playerId, ev }]);
+        setRedoHistory([]);
+      }
     });
   }
 
@@ -453,6 +457,7 @@ export function LiveMatch({
     if (eventHistory.length === 0 || !currentMatchId) return;
     const evt = eventHistory[eventHistory.length - 1];
     setEventHistory((prev) => prev.slice(0, -1));
+    setRedoHistory((prev) => [...prev, evt]);
     const { playerId, ev } = evt;
 
     // Revert optimistic update
@@ -490,6 +495,52 @@ export function LiveMatch({
           if (ev === "tov") updated.turnovers = (cur.turnovers ?? 0) + 1;
           return { ...prev, [playerId]: updated };
         });
+      }
+    });
+  }
+
+  function handleRedo() {
+    if (redoHistory.length === 0 || !currentMatchId) return;
+    const evt = redoHistory[redoHistory.length - 1];
+    setRedoHistory((prev) => prev.slice(0, -1));
+    const { playerId, ev } = evt;
+
+    // Optimistic redo: increment
+    setDbStats((prev) => {
+      const cur: Record<string, number> = prev[playerId] ?? {};
+      const updated: Record<string, number> = { ...cur };
+      if (ev === "make2") updated.points = (cur.points ?? 0) + 2;
+      if (ev === "make3") updated.points = (cur.points ?? 0) + 3;
+      if (ev === "makeFt") updated.points = (cur.points ?? 0) + 1;
+      if (ev === "reb_off") updated.reb_off = (cur.reb_off ?? 0) + 1;
+      if (ev === "reb_def") updated.reb_def = (cur.reb_def ?? 0) + 1;
+      if (ev === "ast") updated.assists = (cur.assists ?? 0) + 1;
+      if (ev === "stl") updated.steals = (cur.steals ?? 0) + 1;
+      if (ev === "blk") updated.blocks = (cur.blocks ?? 0) + 1;
+      if (ev === "tov") updated.turnovers = (cur.turnovers ?? 0) + 1;
+      return { ...prev, [playerId]: updated };
+    });
+
+    startTransition(async () => {
+      const res = await recordMatchEvent(currentMatchId, gameId, playerId, ev);
+      if (res.error) {
+        setMessage(res.error);
+        setDbStats((prev) => {
+          const cur: Record<string, number> = prev[playerId] ?? {};
+          const updated: Record<string, number> = { ...cur };
+          if (ev === "make2") updated.points = Math.max(0, (cur.points ?? 0) - 2);
+          if (ev === "make3") updated.points = Math.max(0, (cur.points ?? 0) - 3);
+          if (ev === "makeFt") updated.points = Math.max(0, (cur.points ?? 0) - 1);
+          if (ev === "reb_off") updated.reb_off = Math.max(0, (cur.reb_off ?? 0) - 1);
+          if (ev === "reb_def") updated.reb_def = Math.max(0, (cur.reb_def ?? 0) - 1);
+          if (ev === "ast") updated.assists = Math.max(0, (cur.assists ?? 0) - 1);
+          if (ev === "stl") updated.steals = Math.max(0, (cur.steals ?? 0) - 1);
+          if (ev === "blk") updated.blocks = Math.max(0, (cur.blocks ?? 0) - 1);
+          if (ev === "tov") updated.turnovers = Math.max(0, (cur.turnovers ?? 0) - 1);
+          return { ...prev, [playerId]: updated };
+        });
+      } else {
+        setEventHistory((prev) => [...prev.slice(-4), { playerId, ev }]);
       }
     });
   }
@@ -1215,18 +1266,32 @@ export function LiveMatch({
             : `รอแอดมินเริ่มเกมส์เพื่อบันทึกสถิติ`}
         </p>
         {canRecord && (
-          <button
-            onClick={handleUndo}
-            disabled={eventHistory.length === 0 || isPending}
-            className={cn(
-              "mx-auto flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition disabled:opacity-30",
-              eventHistory.length > 0
-                ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                : "bg-surface-overlay text-ink-faint"
-            )}
-          >
-            ↩️ เลิกทำ ({eventHistory.length}/5)
-          </button>
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={handleUndo}
+              disabled={eventHistory.length === 0 || isPending}
+              className={cn(
+                "flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-30",
+                eventHistory.length > 0
+                  ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                  : "bg-surface-overlay text-ink-faint"
+              )}
+            >
+              ↩️ เลิกทำ ({eventHistory.length}/5)
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={redoHistory.length === 0 || isPending}
+              className={cn(
+                "flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-30",
+                redoHistory.length > 0
+                  ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                  : "bg-surface-overlay text-ink-faint"
+              )}
+            >
+              ↩️ ทำซ้ำ ({redoHistory.length})
+            </button>
+          </div>
         )}
       </div>
 

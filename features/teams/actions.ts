@@ -427,7 +427,57 @@ export async function substitutePlayer(
   const { error } = await supabase
     .from("team_members")
     .insert({ team_id: teamId, profile_id: newPlayerId });
-  if (error) return { error: "เปลี่ยนตัวไม่สำเร็จ" };
+  revalidateTeams(gameId);
+  return {};
+}
+
+/** ย้ายผู้เล่นหลายคนไปทีมเดียว */
+export async function batchAssignPlayersToTeam(
+  gameId: string,
+  profileIds: string[],
+  teamId: string
+): Promise<ActionState> {
+  if (profileIds.length === 0) return {};
+  const { supabase, canManage } = await getGameEditorContext(gameId);
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
+
+  const { data: teams } = await supabase
+    .from("teams")
+    .select("id, locked")
+    .eq("game_id", gameId);
+  if (!teams?.some((t) => t.id === teamId)) return { error: "ไม่พบทีม" };
+  if (teams.some((t) => t.locked)) return { error: "ทีมถูกล็อคอยู่" };
+
+  const teamIds = teams.map((t) => t.id);
+  for (const pid of profileIds) {
+    await supabase.from("team_members").delete().in("team_id", teamIds).eq("profile_id", pid);
+    await supabase.from("team_members").insert({ team_id: teamId, profile_id: pid });
+  }
+
+  revalidateTeams(gameId);
+  return {};
+}
+
+/** นำผู้เล่นหลายคนออกจากทีมทั้งหมด */
+export async function batchRemovePlayersFromTeam(
+  gameId: string,
+  profileIds: string[]
+): Promise<ActionState> {
+  if (profileIds.length === 0) return {};
+  const { supabase, canManage } = await getGameEditorContext(gameId);
+  if (!canManage) return { error: "คุณไม่มีสิทธิ์จัดการ Session นี้" };
+
+  const { data: teams } = await supabase
+    .from("teams")
+    .select("id, locked")
+    .eq("game_id", gameId);
+  if (!teams || teams.length === 0) return { error: "ยังไม่มีทีม" };
+  if (teams.some((t) => t.locked)) return { error: "ทีมถูกล็อคอยู่" };
+
+  const teamIds = teams.map((t) => t.id);
+  for (const pid of profileIds) {
+    await supabase.from("team_members").delete().in("team_id", teamIds).eq("profile_id", pid);
+  }
 
   revalidateTeams(gameId);
   return {};
