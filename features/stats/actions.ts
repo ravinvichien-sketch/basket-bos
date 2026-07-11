@@ -569,6 +569,13 @@ export async function recordMatchEvent(
     return { error: "Session นี้ยังไม่เริ่มแข่ง" };
   }
 
+  const { data: matchRec } = await supabase
+    .from("matches")
+    .select("status")
+    .eq("id", matchId)
+    .single();
+  if (matchRec?.status === "finished") return { error: "เกมส์นี้จบไปแล้ว" };
+
   const userId = (await supabase.auth.getUser()).data.user?.id;
   if (!userId) return { error: "ไม่พบผู้ใช้" };
 
@@ -691,6 +698,13 @@ export async function undoMatchEvent(
   if (!game || game.status === "completed") return { error: "Session นี้จบแล้ว" };
   if (game.status !== "in_progress") return { error: "Session นี้ยังไม่เริ่มแข่ง" };
 
+  const { data: undoMatchRec } = await supabase
+    .from("matches")
+    .select("status")
+    .eq("id", matchId)
+    .single();
+  if (undoMatchRec?.status === "finished") return { error: "เกมส์นี้จบไปแล้ว" };
+
   const { data: existing } = await supabase
     .from("player_game_stats")
     .select("*")
@@ -748,6 +762,13 @@ export async function subtractPoints(
     .eq("id", gameId)
     .single();
   if (!game || game.status !== "in_progress") return { error: "Session นี้ยังไม่เริ่มแข่งหรือจบแล้ว" };
+
+  const { data: subMatchRec } = await supabase
+    .from("matches")
+    .select("status")
+    .eq("id", matchId)
+    .single();
+  if (subMatchRec?.status === "finished") return { error: "เกมส์นี้จบไปแล้ว" };
 
   const isAdmin = (await supabase.from("profiles").select("role").eq("id", userId).single()).data?.role === "admin";
   const isGroupAdmin = (await supabase.from("group_members").select("role").eq("group_id", game.group_id).eq("profile_id", userId).single()).data?.role === "admin";

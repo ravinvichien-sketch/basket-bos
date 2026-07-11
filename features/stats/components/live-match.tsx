@@ -295,6 +295,8 @@ export function LiveMatch({
     return () => { channel.unsubscribe(); };
   }, [gameId, gameDurationMinutes, supabase]);
 
+  const [autoEndTriggered, setAutoEndTriggered] = useState(false);
+
   // ── Client-side timer tick ──
   useEffect(() => {
     if (timerRunning && timerStartedAt) {
@@ -311,6 +313,7 @@ export function LiveMatch({
         if (remaining <= 0) {
           setTimerRunning(false);
           setGameState("finished");
+          setAutoEndTriggered(true);
           setMessage("⏰ หมดเวลา! เกมส์จบแล้ว");
           clearInterval(id);
         }
@@ -323,6 +326,30 @@ export function LiveMatch({
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [timerRunning, timerStartedAt]);
+
+  // ── Auto-save & end match when timer expires ──
+  useEffect(() => {
+    if (!autoEndTriggered || !currentMatchId || !teamA || !teamB) return;
+    setAutoEndTriggered(false);
+    startTransition(async () => {
+      await saveMatchMinutes(currentMatchId, gameId, playerMinutes);
+      const res = await endMatchGame(
+        currentMatchId,
+        gameId,
+        JSON.stringify({
+          team_a: teamAId,
+          team_b: teamBId,
+          score_a: scoreA,
+          score_b: scoreB,
+          lines: [],
+        })
+      );
+      if (res.error) {
+        setMessage("⏰ หมดเวลา! แต่บันทึกไม่สมบูรณ์: " + res.error);
+      }
+      router.refresh();
+    });
+  }, [autoEndTriggered]);
 
   // ── Track per-player minutes while timer runs ──
   const activePlayerIdsRef = useRef<Set<string>>(new Set());
@@ -422,7 +449,7 @@ export function LiveMatch({
   }
 
   function handleRecord(playerId: string, ev: EventKey) {
-    if (!canRecord || !currentMatchId) return;
+    if (!canRecord || !currentMatchId || gameState !== "playing") return;
     setFlash(playerId + ev);
     setTimeout(() => setFlash(null), 220);
     playClick();
