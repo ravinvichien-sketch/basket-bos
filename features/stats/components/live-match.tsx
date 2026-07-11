@@ -295,8 +295,6 @@ export function LiveMatch({
     return () => { channel.unsubscribe(); };
   }, [gameId, gameDurationMinutes, supabase]);
 
-  const [autoEndTriggered, setAutoEndTriggered] = useState(false);
-
   // ── Client-side timer tick ──
   useEffect(() => {
     if (timerRunning && timerStartedAt) {
@@ -312,9 +310,7 @@ export function LiveMatch({
         setTimerSeconds(remaining);
         if (remaining <= 0) {
           setTimerRunning(false);
-          setGameState("finished");
-          setAutoEndTriggered(true);
-          setMessage("⏰ หมดเวลา! เกมส์จบแล้ว");
+          setMessage("⏰ หมดเวลา! กดจบเกมส์เพื่อยืนยัน");
           clearInterval(id);
         }
       }, 200);
@@ -326,30 +322,6 @@ export function LiveMatch({
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [timerRunning, timerStartedAt]);
-
-  // ── Auto-save & end match when timer expires ──
-  useEffect(() => {
-    if (!autoEndTriggered || !currentMatchId || !teamA || !teamB) return;
-    setAutoEndTriggered(false);
-    startTransition(async () => {
-      await saveMatchMinutes(currentMatchId, gameId, playerMinutes);
-      const res = await endMatchGame(
-        currentMatchId,
-        gameId,
-        JSON.stringify({
-          team_a: teamAId,
-          team_b: teamBId,
-          score_a: scoreA,
-          score_b: scoreB,
-          lines: [],
-        })
-      );
-      if (res.error) {
-        setMessage("⏰ หมดเวลา! แต่บันทึกไม่สมบูรณ์: " + res.error);
-      }
-      router.refresh();
-    });
-  }, [autoEndTriggered]);
 
   // ── Track per-player minutes while timer runs ──
   const activePlayerIdsRef = useRef<Set<string>>(new Set());
@@ -1120,26 +1092,29 @@ export function LiveMatch({
             )}
             {gameState === "playing" && canControl && (
               <>
-                <button
-                  onClick={handlePauseResume}
-                  disabled={isPending}
-                  className="h-10 w-10 rounded-full bg-surface-overlay flex items-center justify-center hover:bg-surface-overlay/70 transition disabled:opacity-50"
-                >
-                  {timerRunning ? "⏸" : "▶"}
-                </button>
+                {timerSeconds > 0 && (
+                  <button
+                    onClick={handlePauseResume}
+                    disabled={isPending}
+                    className="h-10 w-10 rounded-full bg-surface-overlay flex items-center justify-center hover:bg-surface-overlay/70 transition disabled:opacity-50"
+                  >
+                    {timerRunning ? "⏸" : "▶"}
+                  </button>
+                )}
                 <Button
                   onClick={handleEndGame}
                   disabled={isPending}
                   size="md"
-                  variant="danger"
+                  variant={timerSeconds <= 0 ? "danger" : "secondary"}
+                  className={timerSeconds <= 0 ? "animate-pulse" : ""}
                 >
-                  {isPending ? "..." : "⏹ จบเกมส์"}
+                  {isPending ? "..." : timerSeconds <= 0 ? "⏹ ยืนยันจบเกมส์" : "⏹ จบเกมส์"}
                 </Button>
               </>
             )}
             {gameState === "playing" && !canControl && (
               <span className="rounded-xl bg-amber-500/10 text-amber-400 px-4 py-2 text-xs">
-                รอแอดมินจบเกมส์
+                {timerSeconds <= 0 ? "⏰ หมดเวลา! รอแอดมินยืนยัน" : "รอแอดมินจบเกมส์"}
               </span>
             )}
             {gameState === "finished" && (
