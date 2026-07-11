@@ -538,6 +538,37 @@ export function LiveMatch({
     }
     const id1 = selectedSwapId;
     setSelectedSwapId(null);
+
+    const isId1Unassigned = unassignedPlayers.some((p) => p.profileId === id1);
+    const isId2Unassigned = unassignedPlayers.some((p) => p.profileId === playerId);
+
+    // ถ้าผู้เล่นหนึ่งในสองคนยังไม่ได้อยู่ในทีม → เอาคนเก่าออก ใส่คนใหม่แทน
+    if (isId1Unassigned && isId2Unassigned) {
+      setMessage("ผู้เล่นทั้งสองยังไม่อยู่ในทีม");
+      return;
+    }
+    if (isId1Unassigned) {
+      const team = teams.find((t) => t.members.some((m) => m.profileId === playerId));
+      if (!team) { setMessage("ไม่พบทีม"); return; }
+      startTransition(async () => {
+        const res = await substitutePlayer(gameId, playerId, id1, team.id);
+        if (res?.error) setMessage(res.error);
+        else router.refresh();
+      });
+      return;
+    }
+    if (isId2Unassigned) {
+      const team = teams.find((t) => t.members.some((m) => m.profileId === id1));
+      if (!team) { setMessage("ไม่พบทีม"); return; }
+      startTransition(async () => {
+        const res = await substitutePlayer(gameId, id1, playerId, team.id);
+        if (res?.error) setMessage(res.error);
+        else router.refresh();
+      });
+      return;
+    }
+
+    // ปกติ: สลับผู้เล่นข้ามทีม
     startTransition(async () => {
       const res = await swapPlayers(gameId, id1, playerId);
       if (res?.error) setMessage(res.error);
@@ -984,16 +1015,28 @@ export function LiveMatch({
               <p className="text-[11px] font-bold text-ink-dim mb-1">ผู้เล่นอื่น ๆ</p>
               <div className="grid grid-cols-2 gap-1">
                 {unassignedPlayers.map((m) => (
-                  <div key={m.profileId} className="flex gap-1">
-                    <button
-                      type="button"
-                      className="flex-1 flex items-center gap-1.5 rounded-lg bg-surface-overlay px-2 py-1.5 text-xs hover:bg-surface-overlay/70 transition"
-                    >
-                      {m.avatarUrl && (
-                        <Image src={m.avatarUrl} alt="" width={18} height={18} className="rounded-full" />
-                      )}
-                      <span className="truncate">{m.nickname}</span>
-                    </button>
+                   <div key={m.profileId} className="flex gap-1">
+                     <button
+                       type="button"
+                       onClick={() => {
+                          if (selectedSwapId) {
+                            handleTeamSwap(m.profileId);
+                          } else {
+                            setSelectedSwapId(m.profileId);
+                          }
+                        }}
+                       className={cn(
+                         "flex-1 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs transition",
+                         selectedSwapId === m.profileId
+                           ? "bg-court/30 ring-1 ring-court"
+                           : "bg-surface-overlay hover:bg-surface-overlay/70"
+                       )}
+                     >
+                       {m.avatarUrl && (
+                         <Image src={m.avatarUrl} alt="" width={18} height={18} className="rounded-full" />
+                       )}
+                       <span className="truncate">{m.nickname}</span>
+                     </button>
                     {teamA && (
                       <button
                         type="button"
