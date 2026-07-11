@@ -546,7 +546,7 @@ export function LiveMatch({
   }
 
   function handleSubtract(playerId: string, amount: number) {
-    if (!canRecord || !currentMatchId) return;
+    if (!canRecord || !currentMatchId || gameState !== "playing") return;
     setFlash(playerId + "sub");
     setTimeout(() => setFlash(null), 220);
     playClick();

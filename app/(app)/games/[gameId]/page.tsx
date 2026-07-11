@@ -417,7 +417,7 @@ export default async function GameDetailPage({
         )}
       </Card>
 
-      {status !== "draft" && (
+      {["open", "closed", "in_progress", "completed"].includes(status) && (
         <div className="grid grid-cols-2 gap-3">
           {game.court_fee_thb > 0 && (
             <Link

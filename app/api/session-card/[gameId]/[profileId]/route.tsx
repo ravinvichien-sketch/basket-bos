@@ -23,10 +23,12 @@ async function loadFont(weight: 400 | 800): Promise<ArrayBuffer> {
 const BALL = "https://ucarecdn.com/8e1c5a5a-5c5a-4c5a-8e1c-5a5a5c5a8e1c/-/preview/100x100/";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ gameId: string; profileId: string }> }
 ) {
   const { gameId, profileId } = await params;
+  const { searchParams } = new URL(req.url);
+  const useAi = searchParams.get("ai") === "1";
   const admin = createAdminClient();
 
   const [
@@ -109,18 +111,25 @@ export async function GET(
     </div>
   );
 
+  const bgStyle = useAi && aiImageUrl
+    ? { backgroundImage: `url(${aiImageUrl})`, backgroundSize: "cover" as const, backgroundPosition: "center" as const }
+    : { background: gradient };
+
   return new ImageResponse(
     (
       <div style={{
         width: "100%", height: "100%", display: "flex",
-        background: gradient, color: "#ffffff",
+        color: "#ffffff",
         fontFamily: "NotoThai",
         position: "relative", overflow: "hidden",
+        ...bgStyle,
       }}>
-        {/* Subtle pattern overlay */}
+        {/* Dark overlay for readability */}
         <div style={{
           position: "absolute", inset: 0,
-          backgroundImage: "radial-gradient(circle at 25% 50%, rgba(255,255,255,0.03) 0%, transparent 50%)",
+          background: useAi && aiImageUrl
+            ? "linear-gradient(135deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.75) 100%)"
+            : "radial-gradient(circle at 25% 50%, rgba(255,255,255,0.03) 0%, transparent 50%)",
         }} />
 
         <div style={{
@@ -267,20 +276,6 @@ export async function GET(
                   </div>
                 );
               })}
-            </div>
-          )}
-
-          {/* AI Image placeholder */}
-          {aiImageUrl && (
-            <div style={{
-              display: "flex", justifyContent: "center", marginTop: 8,
-            }}>
-              <img
-                src={aiImageUrl}
-                alt=""
-                width={200} height={200}
-                style={{ borderRadius: 16, objectFit: "cover" }}
-              />
             </div>
           )}
 
