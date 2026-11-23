@@ -83,3 +83,22 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ saved: rows.length });
 }
+
+/** GET /api/hh/stats?gameId=…&matchId=… — current Basket Bos totals of one match (for the compare screen). */
+export async function GET(req: NextRequest) {
+  const auth = checkHhToken(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const gameId = req.nextUrl.searchParams.get("gameId");
+  const matchId = req.nextUrl.searchParams.get("matchId");
+  if (!gameId || !matchId) return NextResponse.json({ error: "gameId and matchId required" }, { status: 400 });
+
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("player_game_stats")
+    .select("profile_id, team_id, points, fgm, fga, tpm, tpa, ftm, fta, assists, reb_off, reb_def, steals, blocks, turnovers, fouls, minutes, plus_minus, is_mvp, source")
+    .eq("game_id", gameId)
+    .eq("match_id", matchId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ stats: data ?? [] });
+}
