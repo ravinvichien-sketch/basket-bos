@@ -96,3 +96,23 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ matchId: made.id, index: (count ?? 0) + 1 });
 }
+
+/** DELETE /api/hh/matches?gameId=…&matchId=… — remove one match and its stats (for a duplicate). */
+export async function DELETE(req: NextRequest) {
+  const auth = checkHhToken(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const gameId = req.nextUrl.searchParams.get("gameId");
+  const matchId = req.nextUrl.searchParams.get("matchId");
+  if (!gameId || !matchId) return NextResponse.json({ error: "gameId and matchId required" }, { status: 400 });
+
+  const db = createAdminClient();
+  const { data: match } = await db.from("matches").select("id").eq("id", matchId).eq("game_id", gameId).maybeSingle();
+  if (!match) return NextResponse.json({ error: "match does not belong to this game" }, { status: 404 });
+
+  await db.from("player_game_stats").delete().eq("match_id", matchId);
+  const { error } = await db.from("matches").delete().eq("id", matchId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ deleted: matchId });
+}
