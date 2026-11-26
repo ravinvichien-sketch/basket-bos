@@ -36,6 +36,9 @@ export async function GET(req: NextRequest) {
   });
 }
 
+// Falls back to the colours Hoop Highlights uses for the left and right side.
+const HH_COLORS = ["#F5A623", "#4FC3F7", "#334155", "#E2E8F0"];
+
 const bodySchema = z.object({
   gameId: z.string().uuid(),
   teams: z
@@ -79,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   const { data: made, error: insErr } = await db
     .from("teams")
-    .insert(teams.map((t) => ({ game_id: gameId, name: t.name, color: t.color ?? null })))
+    .insert(teams.map((t, i) => ({ game_id: gameId, name: t.name, color: t.color ?? HH_COLORS[i % HH_COLORS.length] })))
     .select("id, name");
   if (insErr || !made) return NextResponse.json({ error: insErr?.message ?? "could not create teams" }, { status: 500 });
 
