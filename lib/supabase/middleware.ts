@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
-const PUBLIC_PATHS = ["/login", "/auth", "/api/webhooks"];
+const PUBLIC_PATHS = ["/login", "/auth", "/api/webhooks", "/api/hh"];
 
 const GAME_DETAIL_RE = /^\/games\/[0-9a-f-]{36}$/i;
 
