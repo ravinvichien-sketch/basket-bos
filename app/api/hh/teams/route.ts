@@ -5,6 +5,15 @@ import { checkHhToken } from "@/lib/hh/auth";
 
 export const runtime = "nodejs";
 
+import { revalidatePath } from "next/cache";
+
+/** Let the Basket Bos pages show what Hoop Highlights just wrote, without a hard refresh. */
+function refreshGame(gameId: string) {
+  for (const p of ["", "/stats", "/summary", "/teams", "/live", "/videos"]) {
+    try { revalidatePath(`/games/${gameId}${p}`); } catch { /* nothing to revalidate */ }
+  }
+}
+
 /** GET /api/hh/teams?gameId=… — teams of one Session with their members. */
 export async function GET(req: NextRequest) {
   const auth = checkHhToken(req);
@@ -106,6 +115,7 @@ export async function POST(req: NextRequest) {
     if (removable.length) await db.from("teams").delete().in("id", removable);
   }
 
+  refreshGame(gameId);
   return NextResponse.json({
     teams: made.map((r) => ({ id: r.id, name: r.name })),
     replaced: oldIds.length - kept,

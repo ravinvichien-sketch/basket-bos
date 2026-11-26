@@ -5,6 +5,15 @@ import { checkHhToken } from "@/lib/hh/auth";
 
 export const runtime = "nodejs";
 
+import { revalidatePath } from "next/cache";
+
+/** Let the Basket Bos pages show what Hoop Highlights just wrote, without a hard refresh. */
+function refreshGame(gameId: string) {
+  for (const p of ["", "/stats", "/summary", "/teams", "/live", "/videos"]) {
+    try { revalidatePath(`/games/${gameId}${p}`); } catch { /* nothing to revalidate */ }
+  }
+}
+
 /** GET /api/hh/matches?gameId=… — matches (team pairs) of one Session. */
 export async function GET(req: NextRequest) {
   const auth = checkHhToken(req);
@@ -94,6 +103,7 @@ export async function POST(req: NextRequest) {
     .single();
   if (error || !made) return NextResponse.json({ error: error?.message ?? "could not create match" }, { status: 500 });
 
+  refreshGame(gameId);
   return NextResponse.json({ matchId: made.id, index: (count ?? 0) + 1 });
 }
 
@@ -114,5 +124,6 @@ export async function DELETE(req: NextRequest) {
   const { error } = await db.from("matches").delete().eq("id", matchId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  refreshGame(gameId);
   return NextResponse.json({ deleted: matchId });
 }

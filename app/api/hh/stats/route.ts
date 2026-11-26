@@ -5,6 +5,15 @@ import { checkHhToken } from "@/lib/hh/auth";
 
 export const runtime = "nodejs";
 
+import { revalidatePath } from "next/cache";
+
+/** Let the Basket Bos pages show what Hoop Highlights just wrote, without a hard refresh. */
+function refreshGame(gameId: string) {
+  for (const p of ["", "/stats", "/summary", "/teams", "/live", "/videos"]) {
+    try { revalidatePath(`/games/${gameId}${p}`); } catch { /* nothing to revalidate */ }
+  }
+}
+
 const int = z.number().int().min(0).max(200);
 
 const playerSchema = z
@@ -81,6 +90,7 @@ export async function POST(req: NextRequest) {
   const { error } = await db.from("player_game_stats").upsert(rows, { onConflict: "game_id,match_id,profile_id" });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  refreshGame(gameId);
   return NextResponse.json({ saved: rows.length });
 }
 
